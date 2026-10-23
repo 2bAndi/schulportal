@@ -413,7 +413,11 @@ class OverviewBuilder:
                 if r["new"]:
                     items.append({"type": "plan", "title": f"{r['subject_long'] or r['subject']}: {r['kind']}",
                                   "child_ids": r["child_ids"], "note": d["label"], "anchor": "vertretungsplan"})
+        seen_series: set[int] = set()
         for ev in ov.family:
+            if ev.id in seen_series:
+                continue
+            seen_series.add(ev.id)
             if ev.created_by != self.user.id and self._is_new(ev.created_at, ev.updated_at):
                 items.append({"type": "family", "title": ev.title,
                               "child_ids": [] if ev.everyone or ev.parents_only else ev.child_ids,

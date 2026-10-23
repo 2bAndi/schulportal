@@ -110,6 +110,10 @@ mit A-/B-Woche, und mischt eigene Einträge mit den Schulterminen.
 
 * **Eintragen dürfen alle.** Ohne Uhrzeit ist ein Termin ganztägig; mit „bis Datum“ geht er über mehrere Tage.
   Ein Tipp auf ein Datum öffnet das Formular für diesen Tag.
+* **Wiederkehrende Termine:** täglich, wöchentlich, alle 2 Wochen, monatlich oder jährlich, optional mit Enddatum.
+  Mit „nicht in den Schulferien und an schulfreien Tagen“ fallen Termine wie das Training automatisch aus, wenn der
+  Schulkalender Ferien, Feiertage oder unterrichtsfreie Tage meldet. Einzelne Termine einer Serie lassen sich
+  absagen, ohne die Serie zu löschen; Änderungen am Formular gelten für die ganze Serie.
 * **Für wen?** Eltern wählen „Ganze Familie“, einzelne Kinder oder „Nur Mama und Papa“. Kinder wählen
   „Nur für mich“ oder „Für die ganze Familie“; für Geschwister können sie nichts eintragen.
 * **Wer sieht was?** Eltern sehen alles. Kinder sehen ihre eigenen Einträge, Einträge mit ihrem Namen und die für
@@ -125,7 +129,8 @@ mit A-/B-Woche, und mischt eigene Einträge mit den Schulterminen.
   durch einen neuen ersetzen. Der Link funktioniert ohne Anmeldung und ist deshalb wie ein Passwort zu behandeln.
 
 Gespeichert wird in der Tabelle `family_events` (`audience` ist eine Liste von Kinder-IDs, `["*"]` für alle oder
-`["parents"]`). Rechte und Prüfung des Formulars stehen in
+`["parents"]`; Serien über `repeat`, `repeat_until`, `exdates` und `skip_holidays`). Serien werden beim Anzeigen
+und im ICS-Abo in einzelne Termine aufgelöst, damit ausgelassene Ferientage auch im Handykalender fehlen. Rechte und Prüfung des Formulars stehen in
 [`src/schulblick/web/family.py`](src/schulblick/web/family.py), Kalenderansicht und ICS in
 [`src/schulblick/web/calendar.py`](src/schulblick/web/calendar.py).
 
@@ -280,7 +285,6 @@ anonymisiert als Testdatei, passt den Parser an und ergänzt einen Test.
 
 ## Ausblick
 
-* Wiederkehrende Familientermine (z. B. wöchentliches Training)
 * Push-Benachrichtigung bei Unterrichtsausfall am nächsten Tag oder neuen Nachrichten
 * Morgenübersicht per Nachricht
 

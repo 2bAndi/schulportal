@@ -10,6 +10,11 @@
   </div>
 </header>
 
+{% if event and event.is_series %}
+<div class="alert info">Das ist eine Serie ({{ event.repeat_label }}). Änderungen hier gelten für <b>alle</b> Termine der Serie.
+{% if occurrence %}Einen einzelnen Termin am {{ occurrence.strftime('%d.%m.%Y') }} kannst du unten absagen.{% endif %}</div>
+{% endif %}
+
 {% if errors %}
 <div class="alert crit" role="alert">
   {% for e in errors %}<p>{{ e }}</p>{% endfor %}
@@ -48,6 +53,21 @@
   </label>
 
   <fieldset>
+    <legend>Wiederholen</legend>
+    <div class="row2">
+      <label for="repeat">Wie oft?
+        <select id="repeat" name="repeat">
+          {% for key, label in repeats.items() %}<option value="{{ key }}" {% if values.repeat == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label for="repeat_until">bis einschließlich <small>optional</small>
+        <input id="repeat_until" name="repeat_until" type="date" value="{{ values.repeat_until }}">
+      </label>
+    </div>
+    <label class="check"><input type="checkbox" name="skip_holidays" value="1" {% if values.skip_holidays %}checked{% endif %}> <span>nicht in den Schulferien und an schulfreien Tagen <small>(laut Schulkalender)</small></span></label>
+  </fieldset>
+
+  <fieldset>
     <legend>Für wen?</legend>
     {% if user.is_parent %}
       <label class="check"><input type="checkbox" name="audience" value="*" {% if '*' in values.audience %}checked{% endif %}> Ganze Familie</label>
@@ -71,8 +91,19 @@
 
 {% if event %}
 <form class="card evform danger" method="post" action="/kalender/{{ event.id }}/loeschen">
-  <label class="check"><input type="checkbox" name="confirm" value="ja" required> Ja, diesen Termin löschen</label>
-  <div class="actions"><button class="btn-danger" type="submit">Termin löschen</button></div>
+  {% if event.is_series and occurrence %}
+  <input type="hidden" name="am" value="{{ occurrence.isoformat() }}">
+  <fieldset>
+    <legend>Absagen oder löschen</legend>
+    <label class="check"><input type="radio" name="scope" value="one" checked> <span>Nur den Termin am {{ occurrence.strftime('%d.%m.%Y') }} absagen</span></label>
+    <label class="check"><input type="radio" name="scope" value="all"> <span>Die ganze Serie löschen</span></label>
+  </fieldset>
+  <label class="check"><input type="checkbox" name="confirm" value="ja" required> Ja, wirklich</label>
+  <div class="actions"><button class="btn-danger" type="submit">Ausführen</button></div>
+  {% else %}
+  <label class="check"><input type="checkbox" name="confirm" value="ja" required> Ja, {{ 'die ganze Serie' if event.is_series else 'diesen Termin' }} löschen</label>
+  <div class="actions"><button class="btn-danger" type="submit">{{ 'Serie löschen' if event.is_series else 'Termin löschen' }}</button></div>
+  {% endif %}
 </form>
 {% endif %}
 

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -147,6 +147,10 @@ CREATE TABLE IF NOT EXISTS family_events (
     location TEXT,
     note TEXT,
     audience TEXT NOT NULL,             -- JSON: child ids, ["*"] = whole family, ["parents"] = parents only
+    repeat TEXT NOT NULL DEFAULT 'none',-- none | daily | weekly | biweekly | monthly | yearly
+    repeat_until TEXT,                  -- last date of a series (inclusive), NULL = open-ended
+    exdates TEXT NOT NULL DEFAULT '[]', -- JSON list of cancelled occurrence dates
+    skip_holidays INTEGER NOT NULL DEFAULT 0, -- skip school holidays and days without school
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_by_name TEXT,
     created_at TEXT NOT NULL,
@@ -215,6 +219,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "ics_token" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN ics_token TEXT")
+    event_cols = {r["name"] for r in conn.execute("PRAGMA table_info(family_events)")}
+    for name, ddl in (("repeat", "TEXT NOT NULL DEFAULT 'none'"), ("repeat_until", "TEXT"),
+                      ("exdates", "TEXT NOT NULL DEFAULT '[]'"), ("skip_holidays", "INTEGER NOT NULL DEFAULT 0")):
+        if name not in event_cols:
+            conn.execute(f"ALTER TABLE family_events ADD COLUMN {name} {ddl}")
 
 
 @contextmanager

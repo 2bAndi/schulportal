@@ -57,7 +57,7 @@ def create(client, title, audience, **extra):
 
 def event_id(client, title):
     html = client.get(f"/kalender?von={DAY}").text
-    ids = re.findall(r'<strong>(?:<span[^>]*>[^<]*</span> )?' + re.escape(title) + r'</strong>.*?href="/kalender/(\d+)"',
+    ids = re.findall(r'<strong>(?:<span[^>]*>[^<]*</span> )?' + re.escape(title) + r'</strong>.*?href="/kalender/(\d+)[?\"]',
                      html, re.S)
     return int(ids[0]) if ids else None
 
@@ -168,3 +168,40 @@ def test_ics_text_helpers():
     folded = _fold(long)
     assert all(len(part.encode()) <= 75 for part in folded.split("\r\n"))
     assert folded.replace("\r\n ", "") == long
+
+
+def test_recurring_series_via_web(clients):
+    papa, lena = clients["papa"], clients["lena"]
+    r = create(papa, "Hockeytraining", [kid_id("Lena")], start_time="16:00", end_time="17:30", repeat="weekly")
+    assert r.status_code == 303
+    start = date.fromisoformat(DAY)
+    html = lena.get(f"/kalender?von={DAY}").text
+    assert html.count("Hockeytraining") >= 3  # weekly within four weeks
+    assert "↻ wöchentlich" in html
+    ev = event_id(papa, "Hockeytraining")
+    second = (start + timedelta(days=7)).isoformat()
+    # cancel only the second occurrence
+    r = papa.post(f"/kalender/{ev}/loeschen", data={"confirm": "ja", "scope": "one", "am": second},
+                  headers=ORIGIN, follow_redirects=False)
+    assert r.status_code == 303
+    from schulblick.web.calendar import build_agenda  # noqa: F401 - import check only
+    html = papa.get(f"/kalender?von={second}").text
+    day_block = re.search(rf'href="/kalender/neu\?datum={second}".*?</li>', html, re.S).group(0)
+    assert "Hockeytraining" not in day_block
+    # ICS contains individual occurrences with stable UIDs
+    page = lena.get("/kalender/abo").text
+    path = re.search(r'value="https://testserver(/ics/[^"]+\.ics)"', page).group(1)
+    body = lena.get(path).text
+    assert body.count("SUMMARY:Hockeytraining") >= 40
+    assert f"UID:family-{ev}-{start:%Y%m%d}@schulblick" in body
+    # delete the whole series
+    papa.post(f"/kalender/{ev}/loeschen", data={"confirm": "ja", "scope": "all", "am": DAY}, headers=ORIGIN)
+    assert "Hockeytraining" not in papa.get(f"/kalender?von={DAY}").text
+
+
+def test_series_validation(clients):
+    papa = clients["papa"]
+    r = create(papa, "Zu lang", ["*"], repeat="weekly", end_date=(date.fromisoformat(DAY) + timedelta(days=9)).isoformat())
+    assert r.status_code == 400 and "länger als der Abstand" in r.text
+    r = create(papa, "Falsch", ["*"], repeat="hourly")
+    assert r.status_code == 400

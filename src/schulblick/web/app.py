@@ -146,10 +146,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     auth_parent_view = auth.User(id=0, username="", display_name="", role="parent", child_first_name=None,
                                  has_totp=False, prev_visit=None)
 
-    def form_page(request, conn, user, values, errors, event=None, status=200):
+    def form_page(request, conn, user, values, errors, event=None, status=200, occurrence=None):
         own = family.child_id_for(conn, user)
         return templates.TemplateResponse(request, "event_form.html", {
             "user": user, "values": values, "errors": errors, "event": event, "own_child_id": own,
+            "occurrence": occurrence, "repeats": family.REPEATS,
             "kids": kids_for_form(conn) if user.is_parent else [], "version": __version__,
             "active": "kalender",
         }, status_code=status)
@@ -211,7 +212,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return RedirectResponse("/kalender/abo?neu=1", status_code=303)
 
     @app.get("/kalender/{event_id}", response_class=HTMLResponse)
-    def edit_event_form(request: Request, event_id: int, conn=Depends(get_conn)):
+    def edit_event_form(request: Request, event_id: int, am: str | None = None, conn=Depends(get_conn)):
         user = current_user(request, conn)
         if user is None:
             return RedirectResponse("/login", status_code=303)
@@ -219,7 +220,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if ev is None or not ev.can_edit:
             return PlainTextResponse("Diesen Termin gibt es nicht oder du darfst ihn nicht bearbeiten.", status_code=404)
         own = family.child_id_for(conn, user)
-        return form_page(request, conn, user, family.form_values(ev, None, own, user.is_parent), [], event=ev)
+        occurrence = parse_day(am) if ev.is_series else None
+        return form_page(request, conn, user, family.form_values(ev, None, own, user.is_parent), [], event=ev,
+                         occurrence=occurrence)
 
     @app.post("/kalender/{event_id}", response_class=HTMLResponse)
     async def update_event(request: Request, event_id: int, conn=Depends(get_conn)):
@@ -248,10 +251,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if ev is None or not ev.can_edit:
             return PlainTextResponse("Diesen Termin gibt es nicht oder du darfst ihn nicht löschen.", status_code=404)
         form = await request.form()
+        day = parse_day(form.get("am"))
         if form.get("confirm") != "ja":
-            return RedirectResponse(f"/kalender/{event_id}", status_code=303)
+            return RedirectResponse(f"/kalender/{event_id}" + (f"?am={day.isoformat()}" if day else ""),
+                                    status_code=303)
+        if ev.is_series and form.get("scope") == "one" and day is not None:
+            family.cancel_occurrence(conn, event_id, day)
+            return RedirectResponse(f"/kalender?von={day.isoformat()}&ok=3", status_code=303)
         family.delete_event(conn, event_id)
-        return RedirectResponse(f"/kalender?von={ev.first_day.isoformat()}&ok=2", status_code=303)
+        return RedirectResponse(f"/kalender?von={(day or ev.first_day).isoformat()}&ok=2", status_code=303)
 
     @app.get("/ics/{token}.ics")
     def ics_feed(token: str, conn=Depends(get_conn)):

@@ -83,8 +83,8 @@ def build_agenda(conn: sqlite3.Connection, settings: Settings, user: User, start
             "kind": "family", "time": ev.time_label, "title": ev.title, "child_ids": ev.child_ids,
             "everyone": ev.everyone, "parents_only": ev.parents_only,
             "note": " · ".join(x for x in (rng, ev.location) if x), "detail": ev.note,
-            "by": ev.created_by_name, "edit_url": f"/kalender/{ev.id}" if ev.can_edit else None,
-            "sort": ev.time_label or "00:00",
+            "by": ev.created_by_name, "edit_url": ev.edit_url if ev.can_edit else None,
+            "repeat": ev.repeat_label, "sort": ev.time_label or "00:00",
         })
     for e in c.school():
         title = e["title"]
@@ -94,7 +94,7 @@ def build_agenda(conn: sqlite3.Connection, settings: Settings, user: User, start
             "kind": e["kind"], "time": e["time"], "title": title, "child_ids": e["child_ids"],
             "everyone": e["everyone"], "parents_only": e["parents_only"],
             "note": " · ".join(x for x in (e["range"], e["location"]) if x), "detail": "",
-            "by": "Schule", "edit_url": None, "sort": e["time"] or "00:00",
+            "by": "Schule", "edit_url": None, "repeat": "", "sort": e["time"] or "00:00",
         })
     for d in c.plan():
         for r in d["rows"]:
@@ -104,7 +104,7 @@ def build_agenda(conn: sqlite3.Connection, settings: Settings, user: User, start
             add(d["day"], {
                 "kind": "plan", "time": "", "title": f"{r['subject_long'] or r['subject']}: {r['kind']}",
                 "child_ids": r["child_ids"], "everyone": False, "parents_only": False, "note": note, "detail": "",
-                "by": "Vertretungsplan", "edit_url": None, "sort": "00:01",
+                "by": "Vertretungsplan", "edit_url": None, "repeat": "", "sort": "00:01",
             })
 
     days = []
@@ -217,7 +217,8 @@ def build_ics(conn: sqlite3.Connection, settings: Settings, user: User, today: d
 
     for ev in c.family():
         desc = "\n".join(x for x in (ev.note, f"Eingetragen von {ev.created_by_name}" if ev.created_by_name else "") if x)
-        lines += _vevent(f"family-{ev.id}@schulblick", prefix(ev.child_ids, ev.everyone, ev.parents_only) + ev.title,
+        uid = f"family-{ev.id}" + (f"-{ev.occurrence:%Y%m%d}" if ev.occurrence else "") + "@schulblick"
+        lines += _vevent(uid, prefix(ev.child_ids, ev.everyone, ev.parents_only) + ev.title,
                          ev.start, ev.end, tz, location=ev.location, description=desc, stamp=stamp)
 
     for e in c.school():

@@ -241,3 +241,8 @@ h2 small a { color: var(--chalk); }
 .sub label { display: grid; gap: 5px; font-size: .88rem; font-weight: 700; }
 .sub input.mono { font: 400 .8rem var(--f-mono); }
 .howto { margin: 0; padding-left: 1.1em; display: grid; gap: 8px; font-size: .92rem; }
+
+/* recurring events */
+.evform select { font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); width: 100%; }
+.alert.info { background: var(--chalk-bg); color: var(--ink); border-color: transparent; }
+.rep { font: 400 .72rem var(--f-mono); color: var(--chalk); white-space: nowrap; }

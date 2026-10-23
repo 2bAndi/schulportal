@@ -28,7 +28,7 @@
 
 {% include "_tabs.html" %}
 
-{% if saved == '1' %}<div class="alert ok" role="status">Termin gespeichert.</div>{% elif saved == '2' %}<div class="alert ok" role="status">Termin gelöscht.</div>{% endif %}
+{% if saved == '1' %}<div class="alert ok" role="status">Termin gespeichert.</div>{% elif saved == '2' %}<div class="alert ok" role="status">Termin gelöscht.</div>{% elif saved == '3' %}<div class="alert ok" role="status">Dieser eine Termin der Serie ist abgesagt.</div>{% endif %}
 
 <div class="caltools">
   <div class="pager">
@@ -64,6 +64,7 @@
           {% if it.time %}<span class="t">{{ it.time }}</span>{% endif %}
           <strong>{% if it.kind == 'exam' %}<span class="tag crit">Arbeit</span> {% elif it.kind == 'test' %}<span class="tag warn">Lernkontrolle</span> {% elif it.kind == 'plan' %}<span class="tag warn">Vertretung</span> {% elif it.kind == 'holiday' %}<span class="tag ok">frei</span> {% endif %}{{ it.title }}</strong>
           {{ chips(it) }}
+          {% if it.repeat %}<span class="rep" title="Serie: {{ it.repeat }}">↻ {{ it.repeat.split(',')[0].split(' bis ')[0] }}</span>{% endif %}
           {% if it.edit_url %}<a class="edit" href="{{ it.edit_url }}">Bearbeiten</a>{% endif %}
         </div>
         {% if it.note or it.detail or (it.kind == 'family' and it.by) %}
