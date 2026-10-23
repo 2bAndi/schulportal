@@ -1,0 +1,48 @@
+# Schulblick on the Tangosummer server – separate from the WordPress stack in /opt/wordpress.
+# Web app listens on 127.0.0.1:8130 only; host nginx terminates TLS for family.verstehst.de.
+name: schulblick
+
+x-common: &common
+  image: schulblick:0.1.0
+  build: .
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  volumes:
+    - schulblick-data:/data
+    - ./config:/config:ro
+  logging:
+    driver: json-file
+    options: {max-size: "5m", max-file: "3"}
+
+services:
+  web:
+    <<: *common
+    command: ["schulblick", "web"]
+    ports:
+      - "127.0.0.1:8130:8000"
+    environment:
+      SCHULBLICK_COOKIE_SECURE: "true"
+    networks: [front]
+
+  worker:
+    <<: *common
+    command: ["schulblick", "worker"]
+    healthcheck:
+      disable: true
+    secrets:
+      - sph_credentials
+    networks: [egress]
+
+secrets:
+  sph_credentials:
+    file: ./secrets/sph_credentials
+
+volumes:
+  schulblick-data:
+
+networks:
+  front: {}
+  egress: {}

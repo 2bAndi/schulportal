@@ -1,0 +1,46 @@
+# Test configuration matching the anonymised fixtures (Muster family).
+[school]
+id = "6055"
+name = "Testschule"
+timezone = "Europe/Berlin"
+
+[portal]
+fetch_message_bodies = true
+message_window_days = 5
+
+[display]
+kids_see_attendance = true
+hidden_event_categories = ["15", "9"]
+parent_only_keywords = ["Elternabend", "Infoelternabend", "Förderverein"]
+
+[security]
+require_totp_for_parents = false
+
+[[children]]
+first_name = "Max"
+display_name = "Max"
+
+[[children]]
+first_name = "Paul"
+display_name = "Paul"
+
+[[children]]
+first_name = "Lena"
+display_name = "Lenchen"
+
+[[users]]
+username = "papa"
+display_name = "Papa"
+role = "parent"
+
+[[users]]
+username = "lena"
+display_name = "Lenchen"
+role = "child"
+child = "Lena"
+
+[[users]]
+username = "paul"
+display_name = "Paul"
+role = "child"
+child = "Paul"

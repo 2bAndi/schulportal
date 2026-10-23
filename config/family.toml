@@ -1,0 +1,68 @@
+# Schulblick – family configuration.
+# Credentials for the Schulportal are NOT stored here; they live in secrets/sph_credentials.
+
+[school]
+id = "6055"                 # Schule am Ried, Frankfurt (from the portal URL)
+name = "Schule am Ried"
+timezone = "Europe/Berlin"
+
+[portal]
+fetch_message_bodies = true # loading a message marks it as read in the portal
+message_window_days = 5
+
+[display]
+kids_see_attendance = true
+homework_stale_days = 21
+upcoming_days = 7
+exams_horizon_days = 70
+events_horizon_days = 60
+# 15 = conferences (shown anyway if "kein Unterricht" is mentioned), 9 = Abitur
+hidden_event_categories = ["15", "9"]
+# events containing one of these words are shown to parents only
+parent_only_keywords = ["Elternabend", "Infoelternabend", "Förderverein", "Skibasar", "Schulkonferenz", "Elternbeirat"]
+
+[security]
+require_totp_for_parents = false
+session_days = 90
+
+# Children in the order of their colour (1 blue, 2 amber, 3 rose).
+# first_name = first given name as shown in the portal ("Broicher, Carlotta Ida" -> "Carlotta").
+[[children]]
+first_name = "Ben"
+display_name = "Ben"
+
+[[children]]
+first_name = "Boje"
+display_name = "Boje"
+
+[[children]]
+first_name = "Carlotta"
+display_name = "Lotte"
+
+[[users]]
+username = "papa"
+display_name = "Papa"
+role = "parent"
+
+[[users]]
+username = "mama"
+display_name = "Mama"
+role = "parent"
+
+[[users]]
+username = "ben"
+display_name = "Ben"
+role = "child"
+child = "Ben"
+
+[[users]]
+username = "boje"
+display_name = "Boje"
+role = "child"
+child = "Boje"
+
+[[users]]
+username = "lotte"
+display_name = "Lotte"
+role = "child"
+child = "Carlotta"

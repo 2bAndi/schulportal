@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% set multi = ov.kids|length > 1 %}
+{% macro chips(ids, everyone=False) -%}
+  {%- if multi -%}
+  <span class="chips">
+  {%- if everyone %}<span class="chip all">alle</span>{% endif -%}
+  {%- for i in ids %}{% set k = ov.kid_by_id.get(i) %}{% if k %}<span class="chip k{{ k.slot }}">{{ k.name }}</span>{% endif %}{% endfor -%}
+  </span>
+  {%- endif -%}
+{%- endmacro %}
+{% macro tone(ids, everyone=False) -%}
+  {%- if ids|length == 1 and ov.kid_by_id.get(ids[0]) -%}k{{ ov.kid_by_id[ids[0]].slot }}{%- else -%}all{%- endif -%}
+{%- endmacro %}
+{% block title %}Schulblick · {{ ov.user.display_name }}{% endblock %}
+{% block body %}
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <p class="meta">{{ ov.today.strftime('%d.%m.%Y') }}{% if ov.week %} · {{ ov.week }}-Woche{% endif %}{% if ov.last_sync %} · Stand {{ ov.last_sync }}{% endif %}</p>
+    <h1>Schulblick</h1>
+  </div>
+  <div class="who">
+    {% if multi %}{% for k in ov.kids %}<span class="chip k{{ k.slot }}">{{ k.name }}{% if k.class_name %} · {{ k.class_name }}{% endif %}</span>{% endfor %}{% endif %}
+    <form method="post" action="/logout"><button class="btn-link" type="submit">{{ ov.user.display_name }} abmelden</button></form>
+  </div>
+</header>
+
+{% if ov.portal_block %}
+<div class="alert crit" role="alert">Der Abruf aus dem Schulportal ist angehalten: {{ ov.portal_block.split('|')[-1] }}. Bitte Zugangsdaten auf dem Server prüfen.</div>
+{% endif %}
+{% if not ov.kids %}
+<div class="alert warn">Noch keine Daten. Der erste Abruf aus dem Schulportal läuft gleich nach dem Start des Abrufdienstes.</div>
+{% endif %}
+
+<nav class="jump" aria-label="Bereiche">
+  {% if ov.new_items %}<a href="#neu">Neu<span class="n">{{ ov.new_items|length }}</span></a>{% endif %}
+  <a href="#tage">Nächste Tage</a>
+  <a href="#hausaufgaben">Hausaufgaben</a>
+  <a href="#arbeiten">Arbeiten</a>
+  <a href="#vertretungsplan">Vertretungsplan</a>
+  <a href="#nachrichten">Nachrichten{% if ov.messages %}<span class="n">{{ ov.messages|length }}</span>{% endif %}</a>
+  {% if ov.show_attendance %}<a href="#anwesenheit">Anwesenheit</a>{% endif %}
+  <a href="#stundenplan">Stundenplan</a>
+  {% if ov.user.is_parent %}<a href="#status">Abrufstatus</a>{% endif %}
+</nav>
+
+{% if ov.new_items %}
+<section id="neu">
+  <h2>Neu seit deinem letzten Besuch</h2>
+  <ul class="newlist card">
+    {% for n in ov.new_items %}
+    <li>
+      <span class="type">{{ {'message':'Nachricht','homework':'Hausaufgabe','exam':'Arbeit','test':'Lernkontrolle','plan':'Vertretung','attendance':'Anwesenheit'}.get(n.type, n.type) }}</span>
+      <a href="#{{ n.anchor }}">{{ n.title }}</a>
+      <span>{{ chips(n.child_ids, not n.child_ids) }} <span class="note">{{ n.note }}</span></span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% elif ov.first_visit and ov.kids %}
+<p class="note">Ab deinem nächsten Besuch markiert Schulblick hier, was neu dazugekommen ist.</p>
+{% endif %}
+
+<section id="tage">
+  <h2>Die nächsten Tage</h2>
+  {% if ov.days %}
+  <div class="days">
+    {% for d in ov.days %}
+    <div class="day card">
+      <p class="d"><b>{{ d.label }}</b>{% if d.week %}<span>{{ d.week }}-Woche</span>{% endif %}</p>
+      {% for i in d['items'] %}
+      <div class="ev {{ i.type }} {{ tone(i.child_ids) }}">
+        <span class="t">{% if i.time %}{{ i.time }}{% endif %}{{ chips(i.child_ids, not i.child_ids) }}{% if i.new %}<span class="new">neu</span>{% endif %}</span>
+        <strong>{{ i.title }}</strong>
+        {% if i.note %}<span class="note">{{ i.note }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card empty">In den nächsten Tagen steht nichts Besonderes an.</div>
+  {% endif %}
+</section>
+
+<section id="hausaufgaben">
+  <h2>Hausaufgaben <small>aus „Mein Unterricht“</small></h2>
+  <div class="cols">
+    {% for k in ov.kids %}
+    {% set items = ov.homework|selectattr('child_id', 'equalto', k.id)|list %}
+    {% set open_items = items|rejectattr('done')|list %}
+    <div class="col card k{{ k.slot }}">
+      <h3>{{ k.name }} <span class="n">{{ open_items|length }} offen</span></h3>
+      {% if items %}
+      <ul class="hw">
+        {% for h in items %}
+        <li class="{{ 'done' if h.done }}">
+          <div class="s">{{ h.course }} <span class="t">{% if h.new %}<span class="new">neu</span> {% endif %}{{ h.date_label }}</span></div>
+          <p class="task">{{ h.text or '(ohne Aufgabentext)' }}</p>
+          {% if h.done %}<span class="flag done">erledigt</span>{% elif h.stale %}<span class="flag old">älter als {{ ov.stale_weeks }} Wochen</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">Keine offenen Hausaufgaben eingetragen.</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="arbeiten">
+  <h2>Klassenarbeiten und Lernkontrollen</h2>
+  {% if ov.exams %}
+  <div class="card tbl"><table>
+    <thead><tr><th>Datum</th><th>Zeit</th>{% if multi %}<th>Kind</th>{% endif %}<th>Was</th></tr></thead>
+    <tbody>
+    {% for e in ov.exams %}
+      <tr><td class="date">{{ e.first_day.strftime('%d.%m.') }} {{ ['Mo','Di','Mi','Do','Fr','Sa','So'][e.first_day.weekday()] }}</td>
+      <td class="date">{{ e.time or 'ganztägig' }}</td>
+      {% if multi %}<td>{{ chips(e.child_ids) }}</td>{% endif %}
+      <td><span class="kind-{{ e.kind }}">{{ 'Arbeit' if e.kind == 'exam' else 'Lernkontrolle' }}</span> · {{ e.course or e.title }}{% if e.new %} <span class="new">neu</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="card empty">Keine Arbeiten im Schulkalender eingetragen.</div>{% endif %}
+</section>
+
+<section id="vertretungsplan">
+  <h2>Vertretungsplan</h2>
+  {% if ov.plan %}
+  <div class="plan">
+    {% for d in ov.plan %}
+    <div class="planday card">
+      <h3>{{ d.label }}{% if d.week %}<span class="w">{{ d.week }}-Woche</span>{% endif %}</h3>
+      {% for r in d.rows %}
+      <div class="prow">
+        <span class="h">{{ r.hours|replace(' - ', '–') }}.</span>
+        <span><span class="badge {{ 'entfall' if r.kind == 'Entfall' else 'other' }}">{{ r.kind }}</span> {{ r.subject_long or r.subject }}{% if r.room %} · {{ r.room }}{% endif %}{% if r.new %} <span class="new">neu</span>{% endif %}</span>
+        <span class="note">{{ chips(r.child_ids) }}{% if r.substitute %} Vertretung: {{ r.substitute }}{% endif %}{% if r.teacher %} (statt {{ r.teacher }}){% endif %}{% if r.note %} · {{ r.note }}{% endif %}{% if r.maybe %} · falls belegt{% endif %}</span>
+      </div>
+      {% else %}
+      <p class="note">Keine Änderungen{% if multi %} für eure Klassen{% endif %}.</p>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<div class="card empty">Der Vertretungsplan ist gerade leer.</div>{% endif %}
+</section>
+
+<section id="nachrichten">
+  <h2>Nachrichten <small>der letzten {{ ov.message_days }} Tage</small></h2>
+  {% if ov.messages %}
+  <ul class="msgs card">
+    {% for m in ov.messages %}
+    <li><details>
+      <summary>
+        <span class="subj">{% if m.new %}<span class="new">neu</span> {% endif %}{{ m.subject }}</span>
+        <span class="when">{{ m.when }}</span>
+        <span class="from">{{ m.sender }} {{ chips(m.child_ids, m.everyone) }}</span>
+      </summary>
+      <div class="body">{{ m.body if m.body else 'Inhalt nicht geladen. Im Schulportal öffnen.' }}</div>
+      {% if m.groups or m.recipients %}<p class="to">An: {{ m.groups }}{% if m.groups and m.recipients %}, {% endif %}{{ m.recipients }}</p>{% endif %}
+    </details></li>
+    {% endfor %}
+  </ul>
+  {% else %}<div class="card empty">Keine Nachrichten in den letzten Tagen.</div>{% endif %}
+</section>
+
+
+{% if ov.show_attendance %}
+<section id="anwesenheit">
+  <h2>Anwesenheit <small>seit Schuljahresbeginn, in Unterrichtsstunden</small></h2>
+  <div class="att">
+    {% for a in ov.attendance %}{% set k = ov.kid_by_id[a.child_id] %}
+    <div class="attc card">
+      <h3><span class="chip k{{ k.slot }}">{{ k.name }}</span>{% if a.new %} <span class="new">neu</span>{% endif %}</h3>
+      <div class="stats">
+        <div class="stat"><b>{{ a.excused }}</b><span>entschuldigt</span></div>
+        <div class="stat {{ 'warnstat' if a.missing }}"><b>{{ a.missing }}</b><span>„fehlend“</span></div>
+        <div class="stat"><b>{{ a.late_times }}×</b><span>verspätet{% if a.late_minutes %}, {{ a.late_minutes }} Min.{% endif %}</span></div>
+        <div class="stat {{ 'warnstat' if a.open_excuses }}"><b>{{ a.open_excuses }}</b><span>offene Entschuldigungen</span></div>
+      </div>
+      <details><summary>pro Fach</summary>
+        <div class="tbl"><table>
+          <thead><tr><th>Kurs</th>{% for c in a.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for r in a.rows %}<tr><td>{{ r.course }}</td>{% for c in a.columns %}<td>{{ r['values'].get(c, '') }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table></div>
+      </details>
+    </div>
+    {% else %}<div class="card empty">Noch keine Anwesenheitsdaten.</div>{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section id="stundenplan" class="tt-wrap">
+  <h2>Stundenplan <small>Klassenplan; grau = Wahl- oder Zusatzangebot</small></h2>
+  {% for t in ov.timetables %}
+  <details class="card" {% if loop.first %}open{% endif %}>
+    <summary><span class="dot k{{ t.kid.slot }}"></span>{{ t.kid.name }}{% if t.kid.class_name %} · {{ t.kid.class_name }}{% endif %}</summary>
+    <div class="tbl"><table class="tt">
+      <thead><tr><th>Std.</th>{% for d in t.days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in t.rows %}
+        <tr><td>{{ r.hours[0].no }}{% if r.hours|length > 1 %}–{{ r.hours[-1].no }}{% endif %}<br>{{ r.hours[0].start }}</td>
+        {% for c in r.cells %}<td class="{{ 'opt' if c.options }}">{% for l in c.lessons %}<span class="l"><b title="{{ l.code }}">{{ l.name }}</b><span class="r">{{ l.room }}</span></span>{% endfor %}</td>{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </details>
+  {% else %}<div class="card empty">Noch kein Stundenplan abgerufen.</div>{% endfor %}
+</section>
+
+{% if ov.user.is_parent %}
+<section id="status">
+  <h2>Abrufstatus</h2>
+  <div class="card tbl"><table class="status">
+    <thead><tr><th>Bereich</th><th>Letzter Erfolg</th><th>Letzter Lauf</th></tr></thead>
+    <tbody>{% for s in ov.status %}<tr><td>{{ s.area }}</td><td>{{ s.last_ok }}</td><td class="{{ 'ok' if s.ok else 'bad' }}">{{ s.message }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<footer>Schulblick {{ version }} · Daten aus dem Schulportal Hessen, privat für die Familie</footer>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+[
+  {"Uniquid": "u-001", "Betreff": "Unterrichtsentfall", "SenderName": "<i class=\"fa fa-user\"></i> Heiland, Jana (HEIL)", "Datum": "gestern 07:01", "unread": 1, "Papierkorb": "nein", "kuerzel": "HEIL",
+   "WeitereEmpfaenger": "<span class=\"label label-info\"><i class=\"fa fa-users\"></i> Eltern der Lerngruppe Biologie g5c (051BIO06-GYM)</span>", "empf": ["<span class=\"label\"><i class=\"fa fa-user\"></i> Brunner, Jessica</span>"]},
+  {"Uniquid": "u-002", "Betreff": "Informationen zu Hilfs- und Beratungsangeboten", "SenderName": "Krick, Florian (KRIC)", "Datum": "heute 09:00", "unread": 1, "Papierkorb": "nein",
+   "WeitereEmpfaenger": "<span>Alle Lehrkräfte</span><span>Alle Lernenden (SuS)</span>", "empf": []},
+  {"Uniquid": "u-003", "Betreff": "INFO: Verlegung des Deutsch-Kurses (LRS) auf Di, 7. Std.", "SenderName": "Fritsch, Daniela (FRIT)", "Datum": "08.10.2026 18:22", "unread": 0, "Papierkorb": "nein",
+   "WeitereEmpfaenger": "", "empf": ["<span> Muster, Anna</span>", "<span> Muster, Thomas</span>"]},
+  {"Uniquid": "u-004", "Betreff": "Anmeldung Skifahrt; Frist 18.09.2026", "SenderName": "Krick, Florian (KRIC)", "Datum": "20.10.2026 14:28", "unread": 0, "Papierkorb": "nein",
+   "WeitereEmpfaenger": "<span>Eltern der Klasse G8a</span><span>Lernende der Klasse G8a</span>", "empf": []},
+  {"Uniquid": "u-005", "Betreff": "Di, 20.10.2026, Unterrichtsbeginn zur zweiten Stunde", "SenderName": "Krick, Florian (KRIC)", "Datum": "19.10.2026 11:22", "unread": 0, "Papierkorb": "nein",
+   "WeitereEmpfaenger": "<span>Alle Eltern</span><span>Alle Lernenden (SuS)</span>", "empf": []},
+  {"Uniquid": "u-006", "Betreff": "Rechtschreibleistung der Klasse G5c", "SenderName": "Grüb, Christin (GRUB)", "Datum": "21.10.2026 13:13", "unread": 0, "Papierkorb": "nein",
+   "WeitereEmpfaenger": "<span>Eltern der Lerngruppe Deutsch g5c (051D06-GYM)</span>", "empf": []},
+  {"Uniquid": "u-007", "Betreff": "Alte Nachricht", "SenderName": "Krick, Florian (KRIC)", "Datum": "01.09.2026 10:00", "unread": 0, "Papierkorb": "nein",
+   "WeitereEmpfaenger": "<span>Alle Eltern</span>", "empf": []}
+]

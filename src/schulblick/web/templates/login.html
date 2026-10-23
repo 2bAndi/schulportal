@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Anmelden · Schulblick{% endblock %}
+{% block body %}
+<main class="login">
+  <div>
+    <p class="meta">Familie · Schulportal Hessen</p>
+    <h1>Schulblick</h1>
+  </div>
+  {% if error %}<div class="alert crit" role="alert">{{ error }}</div>{% endif %}
+  <form class="card" method="post" action="/login" autocomplete="on">
+    <label for="username">Name
+      <input id="username" name="username" value="{{ username }}" autocapitalize="none" autocomplete="username" required {% if not needs_totp %}autofocus{% endif %}>
+    </label>
+    <label for="password">Passwort
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </label>
+    {% if needs_totp %}
+    <label for="code">Code aus der Authenticator-App
+      <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus>
+    </label>
+    {% endif %}
+    <button type="submit">Anmelden</button>
+  </form>
+  <p class="note">Nach der Anmeldung bleibt dieses Gerät angemeldet, bis du dich abmeldest.</p>
+</main>
+{% endblock %}

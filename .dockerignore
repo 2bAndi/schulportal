@@ -1,0 +1,9 @@
+secrets/
+config/
+tests/
+deploy/
+**/__pycache__
+*.db
+*.db-*
+.git
+.venv
