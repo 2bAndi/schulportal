@@ -1,258 +1,268 @@
 # Schulblick
 
-**A private family dashboard for Schulportal Hessen.**
-Schulblick logs in with a parent account, collects everything that matters for each child — homework, exams,
-substitutions, school calendar, timetables, attendance and recent messages — and shows every family member a
-clean, mobile-friendly overview. Parents see all children; each child sees only their own items, in the same layout.
+**Ein privater Familienüberblick für das Schulportal Hessen.**
+Schulblick meldet sich mit dem Elternkonto an und sammelt für jedes Kind alles Wichtige: Hausaufgaben,
+Klassenarbeiten, Vertretungen, Schultermine, Stundenpläne, Anwesenheit und aktuelle Nachrichten. Jedes
+Familienmitglied bekommt daraus eine übersichtliche Ansicht, die auch auf dem Handy gut funktioniert. Eltern sehen
+alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 
-> Unofficial. Not affiliated with the Hessian Ministry of Education or Schulportal Hessen. Built for private use by
-> one family with its own credentials. Use moderate polling and respect your school's rules.
+> Inoffiziell. Kein Angebot des Hessischen Kultusministeriums oder des Schulportals Hessen. Gebaut für die private
+> Nutzung durch eine Familie mit ihren eigenen Zugangsdaten. Bitte zurückhaltend abfragen und die Regeln der Schule
+> beachten.
 
 <p align="center">
-  <img src="docs/parent-view.png" alt="Parent view with three children (anonymised test data)" width="62%">
+  <img src="docs/parent-view.png" alt="Elternansicht mit drei Kindern (anonymisierte Testdaten)" width="62%">
   &nbsp;
-  <img src="docs/child-view-mobile.png" alt="Child view on a phone in dark mode (anonymised test data)" width="30%">
+  <img src="docs/child-view-mobile.png" alt="Kinderansicht auf dem Handy im Dunkelmodus (anonymisierte Testdaten)" width="30%">
 </p>
-<p align="center"><sub>Parent view (desktop) and child view (phone, dark mode). Screenshots use anonymised test data.</sub></p>
+<p align="center"><sub>Elternansicht am Rechner und Kinderansicht auf dem Handy im Dunkelmodus. Die Screenshots zeigen anonymisierte Testdaten.</sub></p>
 
 ---
 
-## Contents
+## Inhalt
 
-- [Features](#features)
-- [How it works](#how-it-works)
-- [Who sees what](#who-sees-what)
-- [Project layout](#project-layout)
-- [Configuration](#configuration)
-- [Deployment](#deployment)
-- [Operations](#operations)
-- [Development](#development)
-- [Security and privacy](#security-and-privacy)
-- [Known limitations](#known-limitations)
-- [Roadmap](#roadmap)
-- [Acknowledgements](#acknowledgements)
+- [Funktionen](#funktionen)
+- [So funktioniert es](#so-funktioniert-es)
+- [Wer sieht was](#wer-sieht-was)
+- [Aufbau des Projekts](#aufbau-des-projekts)
+- [Konfiguration](#konfiguration)
+- [Installation auf dem Server](#installation-auf-dem-server)
+- [Betrieb](#betrieb)
+- [Entwicklung](#entwicklung)
+- [Sicherheit und Datenschutz](#sicherheit-und-datenschutz)
+- [Bekannte Grenzen](#bekannte-grenzen)
+- [Ausblick](#ausblick)
+- [Dank](#dank)
 
-## Features
+## Funktionen
 
-| Section | Source in the portal | Notes |
+| Bereich | Quelle im Portal | Hinweise |
 |---|---|---|
-| **Next days** | calendar, substitution plan, exams | One card per day for the next 7 days, colour-coded per child |
-| **Homework** | *Mein Unterricht* → current entries | Open/done status, flags homework older than three weeks |
-| **Exams and tests** | calendar (*Klausurplaner*) | Matched to children via the course group, 10-week horizon |
-| **Substitution plan** | *Vertretungsplan* | Only rows for your children's classes; "falls belegt" when the course choice is unknown |
-| **Messages** | *Nachrichten* (encrypted) | Last 5 days, with body text, assigned by recipient groups |
-| **Attendance** | *Mein Unterricht* → attendance | Excused, missing, late (count and minutes), open excuses |
-| **Timetable** | *Stundenplan* | Class timetable; religion/ethics choice resolved from the child's courses |
-| **What's new** | all of the above | Items added or changed since the user's last visit are marked *neu* |
-| **Sync status** | — | Parents see when each area was last fetched and any errors |
+| **Die nächsten Tage** | Kalender, Vertretungsplan, Klassenarbeiten | Eine Karte pro Tag für die kommenden 7 Tage, farblich nach Kind |
+| **Hausaufgaben** | *Mein Unterricht* → Aktuelle Einträge | Offen oder erledigt; Hinweis bei Aufgaben, die älter als drei Wochen sind |
+| **Klassenarbeiten und Lernkontrollen** | Kalender (*Klausurplaner*) | Zuordnung zum Kind über die Lerngruppe, Vorschau über 10 Wochen |
+| **Vertretungsplan** | *Vertretungsplan* | Nur Zeilen für die Klassen der Kinder; „falls belegt“, wenn die Kurswahl unklar ist |
+| **Nachrichten** | *Nachrichten* (verschlüsselt) | Die letzten 5 Tage mit Text, zugeordnet über die Empfängergruppen |
+| **Anwesenheit** | *Mein Unterricht* → Anwesenheiten | Entschuldigt, fehlend, verspätet (Anzahl und Minuten), offene Entschuldigungen |
+| **Stundenplan** | *Stundenplan* | Klassenplan; Religion bzw. Ethik wird aus den Kursen des Kindes erkannt |
+| **Neu seit dem letzten Besuch** | alle Bereiche | Neue oder geänderte Einträge sind mit *neu* markiert |
+| **Abrufstatus** | – | Eltern sehen, wann jeder Bereich zuletzt abgerufen wurde und ob Fehler auftraten |
 
-The UI is German, works on phones (installable to the home screen), supports light and dark mode and needs no
-external fonts or scripts.
+Die Oberfläche funktioniert auf dem Handy und lässt sich zum Startbildschirm hinzufügen. Sie hat einen hellen und
+einen dunklen Modus und lädt keine externen Schriften oder Skripte.
 
-## How it works
+## So funktioniert es
 
 ```mermaid
 flowchart LR
-    SPH["Schulportal Hessen<br/>(parent account)"] -->|"login, HTML pages,<br/>AJAX + AES"| W["worker<br/>APScheduler · httpx"]
-    W -->|"parse · assign · diff"| DB[("SQLite<br/>/data")]
+    SPH["Schulportal Hessen<br/>(Elternkonto)"] -->|"Anmeldung, HTML-Seiten,<br/>AJAX + AES"| W["worker<br/>APScheduler · httpx"]
+    W -->|"auslesen · zuordnen · vergleichen"| DB[("SQLite<br/>/data")]
     DB --> WEB["web<br/>FastAPI · Jinja2"]
-    WEB --> NGINX["nginx (host)<br/>TLS · rate limit"]
-    NGINX --> P["Parents"]
-    NGINX --> K["Children"]
+    WEB --> NGINX["nginx (Host)<br/>TLS · Ratenbegrenzung"]
+    NGINX --> P["Eltern"]
+    NGINX --> K["Kinder"]
 ```
 
-Two containers share one SQLite volume:
+Zwei Container teilen sich eine SQLite-Datenbank:
 
-* **worker** logs in to the portal, fetches each area on a schedule, parses the pages, maps every item to the
-  children it concerns and stores it with `first_seen` / `changed_at` timestamps. It is the only component that
-  holds the portal credentials.
-* **web** serves the login and the overview. It never talks to the portal.
+* **worker** meldet sich am Portal an, ruft die Bereiche nach Zeitplan ab, liest die Seiten aus, ordnet jeden
+  Eintrag den betroffenen Kindern zu und speichert ihn mit den Zeitstempeln `first_seen` und `changed_at`. Nur
+  dieser Container kennt die Zugangsdaten zum Portal.
+* **web** liefert Anmeldung und Übersicht aus. Er spricht nie mit dem Portal.
 
-**Schedule** (Europe/Berlin): school days 06:15–16:45 every 30 minutes; 19:00 and 21:00 before school days;
-weekends 08:05 and 18:05; calendar daily at 05:30; timetables Sundays; database backup nightly at 03:30.
+**Zeitplan** (Europe/Berlin): an Schultagen 06:15–16:45 alle 30 Minuten; 19:00 und 21:00 vor Schultagen;
+am Wochenende 08:05 und 18:05; Kalender täglich um 05:30; Stundenpläne sonntags; Datenbanksicherung jede Nacht um 03:30.
 
-**Portal protocol.** Login runs `login.schulportal.hessen.de` → `connect.schulportal.hessen.de` → `start.schulportal.hessen.de`
-(session cookie `sid`), re-login every 15 minutes or when the session expires. Messages are encrypted: the client
-sends a random key wrapped with the portal's RSA public key, verifies the challenge, then decrypts AES-256-CBC
-payloads in OpenSSL "Salted__" format. Loading a message body marks it as read in the portal.
+**Ablauf im Portal.** Die Anmeldung läuft über `login.schulportal.hessen.de` → `connect.schulportal.hessen.de` →
+`start.schulportal.hessen.de` (Sitzungscookie `sid`). Nach 15 Minuten oder wenn die Sitzung abläuft, meldet sich
+Schulblick neu an. Nachrichten sind verschlüsselt: Schulblick schickt einen zufälligen Schlüssel, verpackt mit dem
+öffentlichen RSA-Schlüssel des Portals, prüft die Antwort und entschlüsselt dann die Inhalte (AES-256-CBC im
+OpenSSL-Format „Salted__“). Wenn Schulblick den Text einer Nachricht lädt, gilt sie im Portal als gelesen.
 
-## Who sees what
+## Wer sieht was
 
-Every item carries the list of children it concerns. The rules live in [`src/schulblick/sync/assign.py`](src/schulblick/sync/assign.py):
+Jeder Eintrag trägt die Liste der Kinder, die er betrifft. Die Regeln stehen in
+[`src/schulblick/sync/assign.py`](src/schulblick/sync/assign.py):
 
-* **Exams/tests** — the calendar entry names a course group (`Französisch g8a (081F01-GYM)`), matched against the
-  courses each child has in *Mein Unterricht*.
-* **Other school events** — audiences are parsed from the text (`JG5-7`, `G9+R9`, `5. und 6. Klassen`, `Unterstufe`,
-  `Q1`…). No audience means the whole family. Events containing a keyword from `parent_only_keywords`
-  (e.g. *Elternabend*) are hidden from children.
-* **Substitutions** — rows that list the child's class. "Sure" when the subject is in that slot of the child's
-  timetable, otherwise shown as "falls belegt" (if taken).
-* **Messages** — groups addressed to *Eltern …* are parents-only; *Lernende / SuS* groups are also shown to the
-  matching children; messages sent personally to the parents stay with the parents.
+* **Klassenarbeiten und Lernkontrollen**: Der Kalendereintrag nennt eine Lerngruppe
+  (`Französisch g8a (081F01-GYM)`). Sie wird mit den Kursen abgeglichen, die das Kind in *Mein Unterricht* hat.
+* **Andere Schultermine**: Die Zielgruppe wird aus dem Text gelesen (`JG5-7`, `G9+R9`, `5. und 6. Klassen`,
+  `Unterstufe`, `Q1` …). Ohne Angabe gilt der Termin für die ganze Familie. Termine mit einem Stichwort aus
+  `parent_only_keywords` (z. B. *Elternabend*) sehen die Kinder nicht.
+* **Vertretungen**: Zeilen, in denen die Klasse des Kindes steht. „Sicher“, wenn das Fach in dieser Stunde im
+  Stundenplan des Kindes steht, sonst mit dem Hinweis „falls belegt“.
+* **Nachrichten**: Gruppen wie *Eltern …* sehen nur die Eltern. Gruppen wie *Lernende* oder *SuS* sehen zusätzlich
+  die passenden Kinder. Nachrichten, die persönlich an die Eltern gehen, bleiben bei den Eltern.
 
-Access control is applied when the overview is built (`OverviewBuilder`), not only in templates.
-Tests assert that a child never sees another child's data.
+Die Rechte werden beim Zusammenstellen der Übersicht geprüft (`OverviewBuilder`), nicht erst in den Vorlagen.
+Tests stellen sicher, dass kein Kind die Daten eines Geschwisters sieht.
 
-## Project layout
+## Aufbau des Projekts
 
 ```
 .
-├── config/family.toml          # school, children, accounts, display rules (no secrets)
+├── config/family.toml          # Schule, Kinder, Konten, Anzeigeregeln (keine Passwörter)
 ├── deploy/
-│   ├── ANLEITUNG.md            # step-by-step server setup (German)
-│   ├── setup.sh                # first-time setup on the server
-│   ├── update.sh               # rebuild + restart after an update
-│   └── nginx/                  # vhost, proxy snippet, rate limit, bootstrap vhost for certbot
-├── docker-compose.yml          # web (127.0.0.1:8130) + worker, read-only containers
+│   ├── ANLEITUNG.md            # Schritt-für-Schritt-Einrichtung auf dem Server
+│   ├── setup.sh                # Ersteinrichtung auf dem Server
+│   ├── update.sh               # neu bauen und starten nach einem Update
+│   └── nginx/                  # vHost, Proxy-Snippet, Ratenbegrenzung, Start-vHost für certbot
+├── docker-compose.yml          # web (127.0.0.1:8130) und worker, schreibgeschützte Container
 ├── Dockerfile
-├── docs/                       # screenshots
+├── docs/                       # Screenshots
 ├── src/schulblick/
 │   ├── sph/
-│   │   ├── client.py           # login flow, session renewal, page and AJAX fetches
-│   │   ├── cryptor.py          # RSA handshake, AES "Salted__" encrypt/decrypt
-│   │   └── parsers.py          # pure parsers for all parent views
+│   │   ├── client.py           # Anmeldung, Sitzungserneuerung, Seiten- und AJAX-Abrufe
+│   │   ├── cryptor.py          # RSA-Handshake, AES „Salted__“ ver- und entschlüsseln
+│   │   └── parsers.py          # reine Parser für alle Elternansichten
 │   ├── sync/
-│   │   ├── assign.py           # which child does an item belong to, who may see it
-│   │   ├── runner.py           # one sync pass per area with change detection
-│   │   └── worker.py           # schedule, credential blocking, backups, housekeeping
+│   │   ├── assign.py           # zu welchem Kind gehört ein Eintrag, wer darf ihn sehen
+│   │   ├── runner.py           # ein Abruf pro Bereich mit Änderungserkennung
+│   │   └── worker.py           # Zeitplan, Sperre bei abgelehnter Anmeldung, Sicherung, Aufräumen
 │   ├── web/
-│   │   ├── app.py              # FastAPI app, security headers, origin check
-│   │   ├── auth.py             # argon2 passwords, sessions, throttling, optional TOTP
-│   │   ├── views.py            # builds the overview for one user
-│   │   ├── templates/          # Jinja2 templates
-│   │   └── static/             # CSS, icons, web manifest
-│   ├── cli.py                  # admin commands (passwords, sync, check-login)
+│   │   ├── app.py              # FastAPI-App, Sicherheits-Header, Herkunftsprüfung
+│   │   ├── auth.py             # Passwörter (argon2), Sitzungen, Bremse bei Fehlversuchen, optional TOTP
+│   │   ├── views.py            # stellt die Übersicht für eine Person zusammen
+│   │   ├── templates/          # Jinja2-Vorlagen
+│   │   └── static/             # CSS, Icons, Web-Manifest
+│   ├── cli.py                  # Verwaltungsbefehle (Passwörter, Abruf, Anmeldetest)
 │   ├── config.py
-│   ├── db.py                   # SQLite schema and helpers
-│   └── fixtures.py             # offline client that reads saved pages
-└── tests/                      # pytest suite + anonymised portal fixtures
+│   ├── db.py                   # SQLite-Schema und Hilfsfunktionen
+│   └── fixtures.py             # Offline-Client, der gespeicherte Seiten liest
+└── tests/                      # pytest-Tests und anonymisierte Portalseiten
 ```
 
-## Configuration
+## Konfiguration
 
-Everything family-specific lives in [`config/family.toml`](config/family.toml). Credentials do **not** go there.
+Alles Familienspezifische steht in [`config/family.toml`](config/family.toml). Zugangsdaten gehören **nicht** dort hinein.
 
-| Key | Default | Meaning |
+| Schlüssel | Standard | Bedeutung |
 |---|---|---|
-| `school.id` | — | School number from the portal URL (`?i=6055`) |
-| `portal.fetch_message_bodies` | `true` | Load message text (marks messages as read in the portal) |
-| `portal.message_window_days` | `5` | How far back messages are shown |
-| `display.upcoming_days` | `7` | Length of the "next days" strip |
-| `display.exams_horizon_days` | `70` | How far ahead exams are listed |
-| `display.homework_stale_days` | `21` | Open homework older than this gets a warning badge |
-| `display.kids_see_attendance` | `true` | Children see their own attendance |
-| `display.hidden_event_categories` | `["15","9"]` | Calendar categories ignored (conferences, Abitur) |
-| `display.parent_only_keywords` | see file | Events with these words are parents-only |
-| `security.require_totp_for_parents` | `false` | Require an authenticator code for parent accounts |
-| `security.session_days` | `90` | How long a device stays logged in |
-| `[[children]]` | — | `first_name` as in the portal, `display_name` for the UI; order defines the colour |
-| `[[users]]` | — | `username`, `display_name`, `role` (`parent`/`child`), `child` for child accounts |
+| `school.id` | – | Schulnummer aus der Portal-Adresse (`?i=6055`) |
+| `portal.fetch_message_bodies` | `true` | Nachrichtentext laden (markiert Nachrichten im Portal als gelesen) |
+| `portal.message_window_days` | `5` | Wie viele Tage zurück Nachrichten angezeigt werden |
+| `display.upcoming_days` | `7` | Länge der Leiste „Die nächsten Tage“ |
+| `display.exams_horizon_days` | `70` | Wie weit voraus Klassenarbeiten aufgelistet werden |
+| `display.homework_stale_days` | `21` | Offene Hausaufgaben, die älter sind, bekommen einen Hinweis |
+| `display.kids_see_attendance` | `true` | Kinder sehen ihre eigene Anwesenheit |
+| `display.hidden_event_categories` | `["15","9"]` | Kalenderkategorien, die ausgeblendet werden (Konferenzen, Abitur) |
+| `display.parent_only_keywords` | siehe Datei | Termine mit diesen Wörtern sehen nur die Eltern |
+| `security.require_totp_for_parents` | `false` | Code aus einer Authenticator-App für Elternkonten verlangen |
+| `security.session_days` | `90` | Wie lange ein Gerät angemeldet bleibt |
+| `[[children]]` | – | `first_name` wie im Portal, `display_name` für die Anzeige; die Reihenfolge bestimmt die Farbe |
+| `[[users]]` | – | `username`, `display_name`, `role` (`parent` oder `child`), bei Kindern `child` |
 
-Environment variables (set in `docker-compose.yml`): `SCHULBLICK_CONFIG`, `SCHULBLICK_DB`, `SCHULBLICK_SPH_SECRET`,
+Umgebungsvariablen (gesetzt in `docker-compose.yml`): `SCHULBLICK_CONFIG`, `SCHULBLICK_DB`, `SCHULBLICK_SPH_SECRET`,
 `SCHULBLICK_COOKIE_SECURE`.
 
-The portal credentials are a two-line file `secrets/sph_credentials`, mounted as a Docker secret into the worker only:
+Die Zugangsdaten zum Portal stehen in der zweizeiligen Datei `secrets/sph_credentials`. Sie wird als Docker-Secret
+nur in den worker eingebunden:
 
 ```
 username=vorname.nachname
 password=...
 ```
 
-Use the username exactly as typed on the portal login page, **lower case and without the school number**.
+Den Benutzernamen genau so eintragen, wie man ihn auf der Anmeldeseite eintippt: **klein geschrieben und ohne
+Schulnummer**.
 
-## Deployment
+## Installation auf dem Server
 
-Target: Ubuntu 24.04 with Docker Compose and nginx on the host (here: the Tangosummer server), public name
-`family.verstehst.de`. Full German walkthrough: [`deploy/ANLEITUNG.md`](deploy/ANLEITUNG.md).
+Ziel ist Ubuntu 24.04 mit Docker Compose und nginx auf dem Host (hier der Tangosummer-Server) unter der Adresse
+`family.verstehst.de`. Die ausführliche Anleitung steht in [`deploy/ANLEITUNG.md`](deploy/ANLEITUNG.md).
 
 ```bash
-# 1. DNS: A record  family.verstehst.de → server IP
-# 2. copy the project to /opt/schulblick, then:
+# 1. DNS: A-Record  family.verstehst.de → IP des Servers
+# 2. Projekt nach /opt/schulblick kopieren, dann:
 cd /opt/schulblick
-sudo bash deploy/setup.sh          # asks for the portal credentials, builds, starts, gets the certificate
-# 3. accounts
-sudo docker compose run --rm web schulblick set-password papa   # repeat for mama, ben, boje, lotte
+sudo bash deploy/setup.sh          # fragt die Portal-Zugangsdaten ab, baut, startet, holt das Zertifikat
+# 3. Konten anlegen
+sudo docker compose run --rm web schulblick set-password papa   # genauso für mama, ben, boje, lotte
 ```
 
-Updates: pull/copy the new version, then `sudo bash deploy/update.sh`. Data and secrets survive.
+Updates: neue Version holen bzw. kopieren, dann `sudo bash deploy/update.sh`. Daten und Zugangsdaten bleiben erhalten.
 
-## Operations
+## Betrieb
 
-All commands run in `/opt/schulblick` with `sudo`.
+Alle Befehle im Ordner `/opt/schulblick` und mit `sudo` ausführen.
 
-| Task | Command |
+| Aufgabe | Befehl |
 |---|---|
-| Show accounts | `docker compose run --rm web schulblick users` |
-| Set / reset a password | `docker compose run --rm web schulblick set-password <name>` |
-| Enable / remove TOTP | `docker compose run --rm web schulblick totp-setup <name>` / `totp-remove <name>` |
-| Test the portal login | `docker compose run --rm worker schulblick check-login` |
-| Sync now | `docker compose run --rm worker schulblick sync [lessons timetables substitutions calendar messages]` |
-| Worker logs | `docker compose logs -f worker` |
-| Last sync runs | `docker compose exec worker sqlite3 -column /data/schulblick.db "SELECT area, ok, message, finished_at FROM sync_runs ORDER BY id DESC LIMIT 6"` |
-| Portal password changed | edit `secrets/sph_credentials`, then `docker compose restart worker` |
+| Konten anzeigen | `docker compose run --rm web schulblick users` |
+| Passwort setzen oder zurücksetzen | `docker compose run --rm web schulblick set-password <name>` |
+| TOTP einrichten oder entfernen | `docker compose run --rm web schulblick totp-setup <name>` / `totp-remove <name>` |
+| Anmeldung am Portal testen | `docker compose run --rm worker schulblick check-login` |
+| Sofort abrufen | `docker compose run --rm worker schulblick sync [lessons timetables substitutions calendar messages]` |
+| Log des Abrufs | `docker compose logs -f worker` |
+| Letzte Abrufe | `docker compose exec worker sqlite3 -column /data/schulblick.db "SELECT area, ok, message, finished_at FROM sync_runs ORDER BY id DESC LIMIT 6"` |
+| Portal-Passwort geändert | `secrets/sph_credentials` anpassen, dann `docker compose restart worker` |
 
-If the portal rejects the parent credentials, the worker stops trying (to avoid an account lock) until the secret
-file changes; parents see a red notice in the app.
+Lehnt das Portal die Zugangsdaten ab, hört der worker auf, es weiter zu versuchen, damit das Konto nicht gesperrt
+wird. Erst wenn sich die Secret-Datei ändert, versucht er es wieder. Bis dahin sehen die Eltern in der App einen
+roten Hinweis.
 
-## Development
+## Entwicklung
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e .[dev]
-pytest                                   # parsers, assignment, crypto, login flow, web access control
+pytest                                   # Parser, Zuordnung, Verschlüsselung, Anmeldung, Zugriffsrechte
 
-# local preview with anonymised fixtures, no portal access needed
+# lokale Vorschau mit anonymisierten Testdaten, ohne Zugriff auf das Portal
 export SCHULBLICK_CONFIG=tests/fixtures/family_test.toml SCHULBLICK_DB=/tmp/sb.db SCHULBLICK_COOKIE_SECURE=false
 schulblick sync --fixtures tests/fixtures
 schulblick set-password papa
 uvicorn schulblick.web.app:create_app --factory --port 8765
 ```
 
-Parsers are pure functions over HTML/JSON, so a portal change is fixed by saving the new page as an (anonymised)
-fixture, adjusting the parser and adding a test.
+Die Parser sind reine Funktionen über HTML und JSON. Ändert das Portal eine Seite, speichert man die neue Seite
+anonymisiert als Testdatei, passt den Parser an und ergänzt einen Test.
 
-## Security and privacy
+## Sicherheit und Datenschutz
 
-* Portal credentials exist only in `secrets/sph_credentials` (uid 10001, mode 0400) and in the worker container.
-  `secrets/` is git-ignored.
-* Containers run as an unprivileged user with a read-only root filesystem, no capabilities and `no-new-privileges`;
-  the web port is bound to `127.0.0.1` and published only through nginx with TLS.
-* Passwords are hashed with argon2; sessions are random tokens stored hashed; login is throttled per user and per IP
-  and additionally rate-limited in nginx. Optional TOTP for parents.
-* Strict security headers (CSP without inline scripts, `frame-ancestors 'none'`, `noindex`), same-origin check on
-  every POST.
-* Data minimisation: messages are kept 30 days, inactive homework 60 days, substitutions 7 days; attendance only as
-  the current totals. Nightly backups are kept for 7 days inside the data volume.
-* `config/family.toml` contains first names and the school — keep this repository private.
+* Die Zugangsdaten zum Portal liegen nur in `secrets/sph_credentials` (Benutzer 10001, Rechte 0400) und im
+  worker-Container. Der Ordner `secrets/` ist von Git ausgeschlossen.
+* Die Container laufen als Benutzer ohne Sonderrechte, mit schreibgeschütztem Dateisystem, ohne Capabilities und mit
+  `no-new-privileges`. Der Web-Port ist nur an `127.0.0.1` gebunden und nur über nginx mit TLS erreichbar.
+* Passwörter sind mit argon2 gespeichert, Sitzungen sind zufällige Tokens, die nur als Hash in der Datenbank liegen.
+  Fehlversuche werden pro Konto und pro IP gebremst, zusätzlich begrenzt nginx die Anmeldeversuche. Für Eltern ist
+  ein zweiter Faktor (TOTP) möglich.
+* Strenge Sicherheits-Header (CSP ohne Inline-Skripte, `frame-ancestors 'none'`, `noindex`) und eine
+  Herkunftsprüfung bei jedem POST.
+* Datensparsamkeit: Nachrichten bleiben 30 Tage, nicht mehr aktive Hausaufgaben 60 Tage, Vertretungen 7 Tage; von
+  der Anwesenheit nur die aktuellen Summen. Die nächtlichen Sicherungen werden 7 Tage im Datenvolume aufbewahrt.
+* `config/family.toml` enthält Vornamen und die Schule. Das Repository muss deshalb privat bleiben.
 
-## Known limitations
+## Bekannte Grenzen
 
-* The portal has no official API. Layout changes can break a parser; the sync status shows which area failed.
-* Loading message bodies marks messages as read in the portal.
-* For parent accounts the portal only exposes the class timetable, not the personal one; elective courses other
-  than religion/ethics are shown greyed out.
-* Assignment of general school events relies on wording such as "JG5-7"; unusual phrasing may need a rule.
+* Das Portal hat keine offizielle Schnittstelle. Ändert sich eine Seite, kann ein Parser ausfallen; der Abrufstatus
+  zeigt, welcher Bereich betroffen ist.
+* Wenn Schulblick den Text einer Nachricht lädt, gilt sie im Portal als gelesen.
+* Für Elternkonten liefert das Portal nur den Klassenplan, nicht den persönlichen Stundenplan. Wahlkurse außer
+  Religion und Ethik erscheinen deshalb grau.
+* Die Zuordnung allgemeiner Schultermine hängt an Formulierungen wie „JG5-7“. Ungewöhnliche Schreibweisen brauchen
+  eventuell eine neue Regel.
 
-## Roadmap
+## Ausblick
 
-**Family calendar** (next): shared calendar in the same app.
+**Familienkalender** (als Nächstes): ein gemeinsamer Kalender in derselben App.
 
-* `family_events(id, title, start, end, all_day, location, note, audience, created_by, updated_at)`, where
-  `audience` is a list of child ids, `["*"]` for everyone or `["parents"]`.
-* Everyone can add entries. Children see their own and family-wide entries, parents see everything.
-  Children edit only what they created; parents edit everything.
-* School items (exams, holidays, substitutions) appear read-only in the same view.
-* Per-person ICS feed (`/ics/<token>.ics`) for phone calendars.
+* Tabelle `family_events(id, title, start, end, all_day, location, note, audience, created_by, updated_at)`;
+  `audience` ist eine Liste von Kinder-IDs, `["*"]` für alle oder `["parents"]`.
+* Alle können Einträge anlegen. Kinder sehen ihre eigenen und die für die ganze Familie, Eltern sehen alles.
+  Kinder bearbeiten nur, was sie selbst angelegt haben; Eltern bearbeiten alles.
+* Schultermine (Arbeiten, Ferien, Vertretungen) erscheinen dort nur zum Lesen.
+* Ein ICS-Abo pro Person (`/ics/<token>.ics`) für den Kalender auf dem Handy.
 
-Later: push notification for cancellations tomorrow or new messages; morning summary.
+Später denkbar: Push-Benachrichtigung bei Unterrichtsausfall am nächsten Tag oder neuen Nachrichten, eine
+Morgenübersicht.
 
-## Acknowledgements
+## Dank
 
-The login flow and message encryption follow the community projects
-[lanis-mobile / liblanis](https://github.com/lanis-mobile) and
-[lanisapi](https://pypi.org/project/lanisapi/). Schulblick contains no code from them; they were the reference for
-how the portal behaves.
+Anmeldung und Nachrichtenverschlüsselung orientieren sich an den Community-Projekten
+[lanis-mobile / liblanis](https://github.com/lanis-mobile) und [lanisapi](https://pypi.org/project/lanisapi/).
+Schulblick enthält keinen Code daraus; sie dienten als Referenz dafür, wie sich das Portal verhält.
 
 ---
 
-Private project · no license granted.
+Privates Projekt · keine Lizenz vergeben.
