@@ -66,3 +66,14 @@ username = "lotte"
 display_name = "Lotte"
 role = "child"
 child = "Carlotta"
+
+# --------------------------------------------------------------------------- KI (optional)
+# Zusammenfassungen, Aufgaben aus Nachrichten, Zuordnung als Rückfall, Morgenübersicht.
+# Schlüssel in secrets/anthropic_key (leere Datei = aus). Ohne Schlüssel läuft alles wie bisher.
+[ai]
+enabled = true
+model = "claude-haiku-5-5"          # Nachrichten
+digest_model = "claude-haiku-5-5"   # Morgenübersicht; "claude-sonnet-5-5" schreibt etwas schöner, kostet mehr
+digest_time = "06:15"
+max_calls_per_day = 150             # harte Bremse zusätzlich zum Ausgabenlimit in der Console
+include_attendance = false          # Anwesenheitsdaten gehen nie an die KI

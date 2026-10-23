@@ -258,3 +258,14 @@ h2 small a { color: var(--chalk); }
 .mono { font-family: var(--f-mono); font-size: .78rem; overflow-wrap: anywhere; }
 .inline-del { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .inline-del .check { display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; }
+
+/* ---------------------------------------------------------------- AI additions */
+.digest { padding: 14px 18px; display: grid; gap: 6px; border-left: 4px solid var(--chalk); }
+.digest .label { font: 600 .7rem var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--chalk); }
+.digest .text { white-space: pre-line; max-width: 75ch; }
+.msgs .ai { grid-column: 1 / -1; font-size: .9rem; max-width: 75ch; }
+.msgs .todos { grid-column: 1 / -1; display: grid; gap: 2px; font-size: .86rem; }
+.msgs .todos .due { font: 400 .74rem var(--f-mono); color: var(--crit); }
+.msgs .more { grid-column: 1 / -1; font-size: .78rem; color: var(--chalk); }
+.msgs details[open] .more { display: none; }
+.ev.todo strong { color: var(--chalk); }

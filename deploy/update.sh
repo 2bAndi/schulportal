@@ -2,6 +2,10 @@
 # Rebuild and restart after copying a new version into /opt/schulblick. Data and secrets are kept.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# optional AI key: compose needs the file to exist; empty = AI off (set it with deploy/ki-schluessel.sh)
+if [[ ! -e secrets/anthropic_key ]]; then
+  install -m 400 -o 10001 -g 10001 /dev/null secrets/anthropic_key
+fi
 docker compose build
 docker compose up -d
 # the web app needs a few seconds to start; wait up to 60 s

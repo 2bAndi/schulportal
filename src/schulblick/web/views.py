@@ -95,6 +95,9 @@ class Overview:
     attendance: list[dict] = field(default_factory=list)
     timetables: list[dict] = field(default_factory=list)
     status: list[dict] = field(default_factory=list)
+    todos: list[dict] = field(default_factory=list)
+    digest: str | None = None
+    ai_status: dict | None = None
     portal_block: str | None = None
     last_sync: str | None = None
     show_attendance: bool = True
@@ -161,13 +164,16 @@ class OverviewBuilder:
         ov.family = fam.list_events(self.conn, self.user, self.today,
                                     self.today + timedelta(days=self.s.upcoming_days))
         ov.messages = self._messages(scope)
+        ov.todos = self._todos(scope)
         if ov.show_attendance:
             ov.attendance = self._attendance(scope)
         ov.timetables = self._timetables(kids)
         ov.days = self._upcoming(ov)
         ov.new_items = self._new_items(ov)
+        ov.digest = self._digest()
         if self.user.is_parent:
             ov.status = self._status()
+            ov.ai_status = self._ai_status()
             row = self.conn.execute("SELECT value FROM meta WHERE key='portal_block'").fetchone()
             ov.portal_block = row["value"] if row else None
         row = self.conn.execute("SELECT MAX(finished_at) FROM sync_runs WHERE ok=1").fetchone()
@@ -270,7 +276,9 @@ class OverviewBuilder:
     def _messages(self, scope: set[str]) -> list[dict]:
         since = (self.now - timedelta(days=self.s.message_window_days)).isoformat()
         out = []
-        for r in self.conn.execute("SELECT * FROM messages WHERE sent_at >= ? ORDER BY sent_at DESC", (since,)):
+        for r in self.conn.execute(
+                "SELECT m.*, a.summary AS ai_summary, a.todos AS ai_todos FROM messages m "
+                "LEFT JOIN message_ai a ON a.message_id = m.id WHERE m.sent_at >= ? ORDER BY m.sent_at DESC", (since,)):
             concerns = _ids(r["child_ids"])
             if self.user.is_parent:
                 ids = self._visible(concerns, scope)
@@ -285,8 +293,67 @@ class OverviewBuilder:
                 "recipients": r["recipients"] if self.user.is_parent else "",
                 "body": r["body"], "child_ids": [] if "*" in concerns else ids, "everyone": "*" in concerns,
                 "new": self._is_new(r["first_seen"], r["changed_at"]),
+                "summary": r["ai_summary"] or "",
+                "todos": [self._todo_label(t) for t in db.loads(r["ai_todos"], [])],
             })
         return out
+
+    @staticmethod
+    def _todo_label(t: dict) -> dict:
+        due = None
+        try:
+            due = date.fromisoformat(t["due"]) if t.get("due") else None
+        except (TypeError, ValueError):
+            pass
+        return {"text": t.get("text", ""), "due": due, "due_label": fmt_short(due) if due else "",
+                "kind": t.get("kind", "sonstiges")}
+
+    def _todos(self, scope: set[str]) -> list[dict]:
+        """To-dos the AI pulled out of messages (last 30 days), with the same visibility as the message."""
+        since = (self.now - timedelta(days=30)).isoformat()
+        window = (self.now - timedelta(days=self.s.message_window_days)).isoformat()
+        out = []
+        rows = self.conn.execute(
+            "SELECT m.id, m.subject, m.sent_at, m.child_ids, m.kid_ids, a.todos FROM messages m "
+            "JOIN message_ai a ON a.message_id = m.id WHERE m.sent_at >= ? AND a.todos IS NOT NULL "
+            "ORDER BY m.sent_at DESC", (since,)).fetchall()
+        for r in rows:
+            concerns = _ids(r["child_ids"]) if self.user.is_parent else _ids(r["kid_ids"])
+            ids = self._visible(concerns, scope)
+            if not self.user.is_parent and not ids:
+                continue
+            for t in db.loads(r["todos"], []):
+                item = self._todo_label(t)
+                if item["due"] is None and r["sent_at"] < window:
+                    continue  # undated to-dos disappear together with the message
+                if item["due"] is not None and item["due"] < self.today:
+                    continue
+                own = [i for i in t.get("children", []) if i in scope]
+                child_ids = own or ([] if "*" in concerns else ids)
+                if not self.user.is_parent and t.get("children") and not own:
+                    continue  # to-do is explicitly for a sibling
+                out.append({**item, "child_ids": child_ids, "message_id": r["id"], "subject": r["subject"]})
+        return out
+
+    def _digest(self) -> str | None:
+        row = self.conn.execute("SELECT text FROM daily_digests WHERE user_id=? AND day=?",
+                                (self.user.id, self.today.isoformat())).fetchone()
+        return row["text"] if row else None
+
+    def _ai_status(self) -> dict | None:
+        start = datetime.combine(self.today, datetime.min.time(), self.s.tz).astimezone(timezone.utc)
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n, SUM(ok) AS ok, SUM(COALESCE(input_tokens,0)) AS tin, "
+            "SUM(COALESCE(output_tokens,0)) AS tout FROM ai_usage WHERE at >= ?",
+            (start.isoformat(timespec="seconds"),)).fetchone()
+        err = self.conn.execute("SELECT at, error FROM ai_usage WHERE ok=0 ORDER BY id DESC LIMIT 1").fetchone()
+        last_ok = self.conn.execute("SELECT at FROM ai_usage WHERE ok=1 ORDER BY id DESC LIMIT 1").fetchone()
+        if not row["n"] and not err and not last_ok:
+            return None
+        return {"calls": row["n"] or 0, "ok": row["ok"] or 0, "tokens_in": row["tin"] or 0,
+                "tokens_out": row["tout"] or 0, "limit": self.s.ai.max_calls_per_day,
+                "last_ok": _ago(last_ok["at"], self.now) if last_ok else "nie",
+                "error": err["error"] if err and (not last_ok or err["at"] > last_ok["at"]) else None}
 
     def _attendance(self, scope: set[str]) -> list[dict]:
         out = []
@@ -378,6 +445,10 @@ class OverviewBuilder:
                 "parents_only": ev.parents_only,
                 "note": " · ".join(x for x in (rng, ev.location) if x),
                 "new": self._is_new(ev.created_at, ev.updated_at) and ev.created_by != self.user.id})
+        for t in ov.todos:
+            if t["due"]:
+                add(t["due"], {"type": "todo", "time": "", "title": t["text"], "child_ids": t["child_ids"],
+                               "note": f"aus: {t['subject']}", "new": False})
         for d in ov.plan:
             for r in d["rows"]:
                 title = f"{r['subject_long'] or r['subject']}: {r['kind']}"
@@ -399,7 +470,7 @@ class OverviewBuilder:
         for m in ov.messages:
             if m["new"]:
                 items.append({"type": "message", "title": m["subject"], "child_ids": m["child_ids"],
-                              "note": m["sender"], "anchor": "nachrichten"})
+                              "note": m["sender"], "anchor": "nachrichten", "summary": m["summary"]})
         for h in ov.homework:
             if h["new"] and not h["done"]:
                 items.append({"type": "homework", "title": f"{h['course']}: {h['text'][:80]}",

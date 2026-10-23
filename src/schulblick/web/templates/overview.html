@@ -35,6 +35,13 @@
 <div class="alert warn">Noch keine Daten. Der erste Abruf aus dem Schulportal läuft gleich nach dem Start des Abrufdienstes.</div>
 {% endif %}
 
+{% if ov.digest %}
+<section id="morgen" class="digest card" aria-label="Morgenübersicht">
+  <p class="label">Heute früh · Kurzüberblick</p>
+  <div class="text">{{ ov.digest }}</div>
+</section>
+{% endif %}
+
 <nav class="jump" aria-label="Bereiche">
   {% if ov.new_items %}<a href="#neu">Neu<span class="n">{{ ov.new_items|length }}</span></a>{% endif %}
   <a href="#tage">Nächste Tage</a>
@@ -53,7 +60,7 @@
   <ul class="newlist card">
     {% for n in ov.new_items %}
     <li>
-      <span class="type">{{ {'message':'Nachricht','homework':'Hausaufgabe','exam':'Arbeit','test':'Lernkontrolle','plan':'Vertretung','attendance':'Anwesenheit','family':'Termin'}.get(n.type, n.type) }}</span>
+      <span class="type">{{ {'message':'Nachricht','homework':'Hausaufgabe','exam':'Arbeit','test':'Lernkontrolle','plan':'Vertretung','attendance':'Anwesenheit','family':'Termin','todo':'Aufgabe'}.get(n.type, n.type) }}</span>
       <a href="#{{ n.anchor }}">{{ n.title }}</a>
       <span>{{ chips(n.child_ids, not n.child_ids) }} <span class="note">{{ n.note }}</span></span>
     </li>
@@ -73,7 +80,7 @@
       <p class="d"><b>{{ d.label }}</b>{% if d.week %}<span>{{ d.week }}-Woche</span>{% endif %}</p>
       {% for i in d['items'] %}
       <div class="ev {{ i.type }} {{ tone(i.child_ids) }}">
-        <span class="t">{% if i.time %}{{ i.time }}{% endif %}{% if i.parents_only %}<span class="chip all">Eltern</span>{% else %}{{ chips(i.child_ids, not i.child_ids) }}{% endif %}{% if i.new %}<span class="new">neu</span>{% endif %}</span>
+        <span class="t">{% if i.type == 'todo' %}<span class="tag ok">Aufgabe</span>{% endif %}{% if i.time %}{{ i.time }}{% endif %}{% if i.parents_only %}<span class="chip all">Eltern</span>{% else %}{{ chips(i.child_ids, not i.child_ids) }}{% endif %}{% if i.new %}<span class="new">neu</span>{% endif %}</span>
         <strong>{{ i.title }}</strong>
         {% if i.note %}<span class="note">{{ i.note }}</span>{% endif %}
       </div>
@@ -159,6 +166,9 @@
         <span class="subj">{% if m.new %}<span class="new">neu</span> {% endif %}{{ m.subject }}</span>
         <span class="when">{{ m.when }}</span>
         <span class="from">{{ m.sender }} {{ chips(m.child_ids, m.everyone) }}</span>
+        {% if m.summary %}<span class="ai">{{ m.summary }}</span>{% endif %}
+        {% if m.todos %}<span class="todos">{% for t in m.todos %}<span class="todo">☐ <b>{{ t.text }}</b>{% if t.due_label %} <span class="due">bis {{ t.due_label }}</span>{% endif %}</span>{% endfor %}</span>{% endif %}
+        {% if m.summary and m.body %}<span class="more">Originaltext anzeigen</span>{% endif %}
       </summary>
       <div class="body">{{ m.body if m.body else 'Inhalt nicht geladen. Im Schulportal öffnen.' }}</div>
       {% if m.groups or m.recipients %}<p class="to">An: {{ m.groups }}{% if m.groups and m.recipients %}, {% endif %}{{ m.recipients }}</p>{% endif %}
@@ -217,7 +227,8 @@
   <h2>Abrufstatus</h2>
   <div class="card tbl"><table class="status">
     <thead><tr><th>Bereich</th><th>Letzter Erfolg</th><th>Letzter Lauf</th></tr></thead>
-    <tbody>{% for s in ov.status %}<tr><td>{{ s.area }}</td><td>{{ s.last_ok }}</td><td class="{{ 'ok' if s.ok else 'bad' }}">{{ s.message }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for s in ov.status %}<tr><td>{{ s.area }}</td><td>{{ s.last_ok }}</td><td class="{{ 'ok' if s.ok else 'bad' }}">{{ s.message }}</td></tr>{% endfor %}
+    {% if ov.ai_status %}{% set a = ov.ai_status %}<tr><td>KI-Zusammenfassung</td><td>{{ a.last_ok }}</td><td class="{{ 'bad' if a.error else 'ok' }}">{% if a.error %}{{ a.error }} · {% endif %}heute {{ a.calls }} von {{ a.limit }} Aufrufen, {{ a.tokens_in + a.tokens_out }} Tokens</td></tr>{% endif %}</tbody>
   </table></div>
 </section>
 {% endif %}

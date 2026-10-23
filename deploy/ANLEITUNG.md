@@ -75,6 +75,17 @@ Passwörter brauchen mindestens 8 Zeichen. Alle melden sich mit Name und Passwor
 `https://family.verstehst.de` öffnen, anmelden, dann „Zum Startbildschirm hinzufügen“ (iPhone: Teilen-Menü,
 Android: Browser-Menü). Danach startet Schulblick wie eine App.
 
+## 5. KI-Zusatz (optional)
+
+1. In der Anthropic Console einen Arbeitsbereich `schulblick` mit Ausgabenlimit (z. B. 20 $) anlegen und dort einen
+   API-Schlüssel erzeugen.
+2. `sudo bash deploy/ki-schluessel.sh` – Schlüssel einfügen (die Eingabe bleibt unsichtbar). Das Skript startet den
+   worker neu und zeigt den KI-Status.
+3. Testen: `docker compose exec worker schulblick ai-run` und `docker compose exec worker schulblick ai-digest --neu`.
+
+Ohne Schlüssel bleibt `secrets/anthropic_key` leer und Schulblick läuft wie bisher. Ausschalten:
+`sudo bash deploy/ki-schluessel.sh --aus`. Anwesenheitsdaten gehen nie an die KI.
+
 ## Betrieb
 
 | Was | Befehl |
@@ -83,10 +94,12 @@ Android: Browser-Menü). Danach startet Schulblick wie eine App.
 | Sofort abrufen | `docker compose run --rm worker schulblick sync` |
 | Login testen | `docker compose run --rm worker schulblick check-login` |
 | Neue Version einspielen | Dateien nach `/opt/schulblick` kopieren, dann `bash deploy/update.sh` |
+| KI-Status | `docker compose exec worker schulblick ai-status` |
 | Schulportal-Passwort geändert | `secrets/sph_credentials` anpassen, dann `docker compose restart worker` |
 
 **Abrufzeiten:** Schultage 06:15–16:45 alle 30 Minuten, abends 19:00 und 21:00 vor Schultagen,
-am Wochenende 08:05 und 18:05; Kalender und Anwesenheit täglich 05:30, Stundenpläne sonntags.
+am Wochenende 08:05 und 18:05; Kalender und Anwesenheit täglich 05:30, Stundenpläne sonntags;
+Morgenübersicht (mit KI) täglich 06:15.
 
 **Wenn das Schulportal das Passwort ablehnt**, versucht der Abrufdienst es nicht weiter (sonst droht eine
 Kontosperre). Die Eltern-Ansicht zeigt dann oben einen roten Hinweis. Nach dem Korrigieren der Secret-Datei

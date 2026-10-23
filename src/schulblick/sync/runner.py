@@ -12,6 +12,7 @@ from .. import db
 from ..config import Settings
 from ..sph import parsers as P
 from ..sph.client import LoginLocked, PortalDown, SPHClient, WrongCredentials, parse_portal_datetime
+from ..ai import process_messages, stored_fallback
 from .assign import ChildProfile, assign_event, assign_message, assign_substitution
 
 log = logging.getLogger(__name__)
@@ -47,10 +48,11 @@ def load_profiles(conn: sqlite3.Connection) -> list[ChildProfile]:
 
 
 class Syncer:
-    def __init__(self, settings: Settings, conn: sqlite3.Connection, client: SPHClient) -> None:
+    def __init__(self, settings: Settings, conn: sqlite3.Connection, client: SPHClient, ai=None) -> None:
         self.s = settings
         self.conn = conn
         self.client = client
+        self.ai = ai  # optional schulblick.ai.AIClient
 
     # -- bookkeeping -------------------------------------------------------------
 
@@ -281,6 +283,8 @@ class Syncer:
             if sent < window_start:
                 continue
             concerns, kids = assign_message(msg, profiles)
+            if not concerns:  # rules found nothing: keep an earlier AI guess
+                concerns, kids = stored_fallback(self.conn, msg.id, ", ".join(msg.groups)) or (concerns, kids)
             row = self.conn.execute("SELECT sent_at, body FROM messages WHERE id=?", (msg.id,)).fetchone()
             body = row["body"] if row else None
             needs_body = self.s.fetch_message_bodies and (row is None or body is None or row["sent_at"] != sent.isoformat())
@@ -305,7 +309,14 @@ class Syncer:
             stored += 1
         cutoff = (now_local - timedelta(days=30)).isoformat()
         self.conn.execute("DELETE FROM messages WHERE sent_at < ?", (cutoff,))
-        return f"{stored} recent messages, {fetched} bodies loaded"
+        self.conn.execute("DELETE FROM message_ai WHERE message_id NOT IN (SELECT id FROM messages)")
+        result = f"{stored} recent messages, {fetched} bodies loaded"
+        if self.ai is not None:
+            try:
+                result += "; KI: " + process_messages(self.conn, self.s, self.ai)
+            except Exception:  # noqa: BLE001 - the AI is an extra, never a reason for a failed sync
+                log.exception("AI step failed")
+        return result
 
     # -- orchestration -------------------------------------------------------------------
 

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -173,6 +173,42 @@ CREATE TABLE IF NOT EXISTS calendar_feeds (
     last_sync TEXT,
     last_ok INTEGER,
     last_message TEXT
+);
+
+-- AI results per message (summary, to-dos, fallback assignment).
+CREATE TABLE IF NOT EXISTS message_ai (
+    message_id TEXT PRIMARY KEY,
+    body_hash TEXT NOT NULL,
+    summary TEXT,
+    todos TEXT NOT NULL DEFAULT '[]',   -- JSON list of {text, due, kind, children: [child ids]}
+    child_ids TEXT NOT NULL DEFAULT '[]', -- AI guess which children the message concerns
+    model TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Morning summary per account and day.
+CREATE TABLE IF NOT EXISTS daily_digests (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day TEXT NOT NULL,
+    text TEXT NOT NULL,
+    model TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, day)
+);
+
+-- Every AI call, for the daily limit and the cost overview.
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    ok INTEGER NOT NULL,
+    error TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (

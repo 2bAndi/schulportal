@@ -21,6 +21,7 @@ dependencies = [
   "qrcode==8.2",
   "icalendar==7.3.0",
   "recurring-ical-events==3.8.2",
+  "anthropic==2.2.0",
 ]
 
 [project.optional-dependencies]

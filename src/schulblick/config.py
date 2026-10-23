@@ -26,6 +26,17 @@ class UserConfig:
 
 
 @dataclass(frozen=True)
+class AISettings:
+    enabled: bool = True
+    model: str = "claude-haiku-5-5"
+    digest_model: str = "claude-haiku-5-5"
+    digest_time: str = "06:15"
+    max_calls_per_day: int = 150
+    include_attendance: bool = False
+    secret_path: Path = Path("/run/secrets/anthropic_key")
+
+
+@dataclass(frozen=True)
 class Settings:
     db_path: Path
     config_path: Path
@@ -47,6 +58,7 @@ class Settings:
     users: tuple[UserConfig, ...]
     require_totp_for_parents: bool
     session_days: int
+    ai: "AISettings" = None  # type: ignore[assignment]
     extra: dict = field(default_factory=dict)
 
     def child_by_first_name(self, first_name: str) -> ChildConfig | None:
@@ -71,6 +83,16 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
     portal = raw.get("portal", {})
     display = raw.get("display", {})
     security = raw.get("security", {})
+    ai_raw = raw.get("ai", {})
+    ai = AISettings(
+        enabled=bool(ai_raw.get("enabled", True)),
+        model=str(ai_raw.get("model", "claude-haiku-5-5")),
+        digest_model=str(ai_raw.get("digest_model", ai_raw.get("model", "claude-haiku-5-5"))),
+        digest_time=str(ai_raw.get("digest_time", "06:15")),
+        max_calls_per_day=int(ai_raw.get("max_calls_per_day", 150)),
+        include_attendance=bool(ai_raw.get("include_attendance", False)),
+        secret_path=Path(os.environ.get("SCHULBLICK_ANTHROPIC_SECRET", "/run/secrets/anthropic_key")),
+    )
 
     children = tuple(
         ChildConfig(
@@ -116,6 +138,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         users=users,
         require_totp_for_parents=bool(security.get("require_totp_for_parents", True)),
         session_days=int(security.get("session_days", 90)),
+        ai=ai,
         extra=raw,
     )
 

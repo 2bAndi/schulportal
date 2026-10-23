@@ -7,6 +7,9 @@
     schulblick check-login               test the parent credentials against the portal
     schulblick sync [areas...]           run one sync now (lessons timetables substitutions calendar messages)
     schulblick sync --fixtures DIR       load saved pages instead of the portal (preview/testing)
+    schulblick ai-status                 is the AI layer set up? calls and errors today
+    schulblick ai-run                    summarise new messages now (normally done by every sync)
+    schulblick ai-digest [--neu]         write today's morning summaries now (--neu: replace existing ones)
     schulblick worker | web              start the long-running services
 """
 
@@ -133,6 +136,48 @@ def cmd_sync(args) -> int:
     return 0 if all(results.values()) else 1
 
 
+def cmd_ai_status(_args) -> int:
+    from .ai import AIClient, read_key
+
+    settings, conn = _conn()
+    client = AIClient(settings, conn)
+    key = read_key(settings)
+    print(f"KI eingeschaltet:  {'ja' if settings.ai.enabled else 'nein ([ai] enabled = false)'}")
+    print(f"Schlüssel:         {'vorhanden' if key else 'fehlt (' + str(settings.ai.secret_path) + ')'}")
+    print(f"Modelle:           {settings.ai.model} / Morgen: {settings.ai.digest_model} um {settings.ai.digest_time}")
+    print(f"Anwesenheit an KI: {'ja' if settings.ai.include_attendance else 'nein'}")
+    print(f"Aufrufe heute:     {client.calls_today()} von {settings.ai.max_calls_per_day}")
+    done = conn.execute("SELECT COUNT(*) FROM message_ai WHERE summary IS NOT NULL").fetchone()[0]
+    print(f"Zusammenfassungen: {done}")
+    err = conn.execute("SELECT at, error FROM ai_usage WHERE ok=0 ORDER BY id DESC LIMIT 1").fetchone()
+    if err:
+        print(f"Letzter Fehler:    {err['at']} {err['error']}")
+    return 0 if client.available else 1
+
+
+def cmd_ai_run(_args) -> int:
+    from .ai import AIClient, process_messages
+
+    settings, conn = _conn()
+    print(process_messages(conn, settings, AIClient(settings, conn)))
+    return 0
+
+
+def cmd_ai_digest(args) -> int:
+    from datetime import datetime
+
+    from .ai import AIClient, build_digests
+
+    settings, conn = _conn()
+    if args.neu:
+        conn.execute("DELETE FROM daily_digests WHERE day=?", (datetime.now(settings.tz).date().isoformat(),))
+    print(build_digests(conn, settings, AIClient(settings, conn)))
+    for r in conn.execute("SELECT u.username, d.text FROM daily_digests d JOIN users u ON u.id=d.user_id "
+                          "WHERE d.day=? ORDER BY u.id", (datetime.now(settings.tz).date().isoformat(),)):
+        print(f"\n--- {r['username']} ---\n{r['text']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="schulblick", description="Schulblick Verwaltung")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -143,6 +188,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("check-login").set_defaults(fn=cmd_check_login)
     p = sub.add_parser("sync"); p.add_argument("areas", nargs="*"); p.add_argument("--fixtures")
     p.set_defaults(fn=cmd_sync)
+    sub.add_parser("ai-status").set_defaults(fn=cmd_ai_status)
+    sub.add_parser("ai-run").set_defaults(fn=cmd_ai_run)
+    p = sub.add_parser("ai-digest"); p.add_argument("--neu", action="store_true"); p.set_defaults(fn=cmd_ai_digest)
     sub.add_parser("worker").set_defaults(fn=lambda _a: _run_worker())
     sub.add_parser("web").set_defaults(fn=lambda _a: _run_web())
     args = parser.parse_args(argv)

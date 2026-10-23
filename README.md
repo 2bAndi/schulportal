@@ -26,6 +26,7 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 - [Wer sieht was](#wer-sieht-was)
 - [Familienkalender](#familienkalender)
 - [Outlook-Import](#outlook-import)
+- [KI-Zusatz (optional)](#ki-zusatz-optional)
 - [Aufbau des Projekts](#aufbau-des-projekts)
 - [Konfiguration](#konfiguration)
 - [Installation auf dem Server](#installation-auf-dem-server)
@@ -49,6 +50,7 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 | **Stundenplan** | *Stundenplan* | Klassenplan; Religion bzw. Ethik wird aus den Kursen des Kindes erkannt |
 | **Neu seit dem letzten Besuch** | alle Bereiche | Neue oder geänderte Einträge sind mit *neu* markiert |
 | **Abrufstatus** | – | Eltern sehen, wann jeder Bereich zuletzt abgerufen wurde und ob Fehler auftraten |
+| **KI-Zusatz** (optional) | Nachrichten + alle Bereiche | Kurzfassung jeder Nachricht, Aufgaben und Fristen in „Die nächsten Tage“, Zuordnung als Rückfall, Morgenübersicht um 06:15, siehe [unten](#ki-zusatz-optional) |
 | **Familienkalender** | eigene Einträge + Schule | Gemeinsamer Kalender mit Rechten pro Person und ICS-Abo fürs Handy, siehe [unten](#familienkalender) |
 
 Die Oberfläche funktioniert auf dem Handy und lässt sich zum Startbildschirm hinzufügen. Sie hat einen hellen und
@@ -60,6 +62,7 @@ einen dunklen Modus und lädt keine externen Schriften oder Skripte.
 flowchart LR
     SPH["Schulportal Hessen<br/>(Elternkonto)"] -->|"Anmeldung, HTML-Seiten,<br/>AJAX + AES"| W["worker<br/>APScheduler · httpx"]
     W -->|"auslesen · zuordnen · vergleichen"| DB[("SQLite<br/>/data")]
+    W <-.->|"optional: Kurzfassung,<br/>Aufgaben, Morgenübersicht"| AI["Anthropic API<br/>Haiku 5.5"]
     DB --> WEB["web<br/>FastAPI · Jinja2"]
     WEB --> NGINX["nginx (Host)<br/>TLS · Ratenbegrenzung"]
     NGINX --> P["Eltern"]
@@ -70,11 +73,11 @@ Zwei Container teilen sich eine SQLite-Datenbank:
 
 * **worker** meldet sich am Portal an, ruft die Bereiche nach Zeitplan ab, liest die Seiten aus, ordnet jeden
   Eintrag den betroffenen Kindern zu und speichert ihn mit den Zeitstempeln `first_seen` und `changed_at`. Nur
-  dieser Container kennt die Zugangsdaten zum Portal.
+  dieser Container kennt die Zugangsdaten zum Portal und den optionalen KI-Schlüssel.
 * **web** liefert Anmeldung und Übersicht aus. Er spricht nie mit dem Portal.
 
 **Zeitplan** (Europe/Berlin): an Schultagen 06:15–16:45 alle 30 Minuten; 19:00 und 21:00 vor Schultagen;
-am Wochenende 08:05 und 18:05; Kalender täglich um 05:30; Stundenpläne sonntags; Datenbanksicherung jede Nacht um 03:30.
+am Wochenende 08:05 und 18:05; Kalender täglich um 05:30; Stundenpläne sonntags; Morgenübersicht (mit KI) um 06:15; Datenbanksicherung jede Nacht um 03:30.
 
 **Ablauf im Portal.** Die Anmeldung läuft über `login.schulportal.hessen.de` → `connect.schulportal.hessen.de` →
 `start.schulportal.hessen.de` (Sitzungscookie `sid`). Nach 15 Minuten oder wenn die Sitzung abläuft, meldet sich
@@ -150,6 +153,51 @@ Zeitzonen aus Outlook (z. B. „W. Europe Standard Time“), Sommerzeitwechsel, 
 Termine werden berücksichtigt. Links müssen `https://` oder `webcal://` sein und dürfen nicht ins Heimnetz zeigen;
 Dateien und Kalender sind auf 5 MB begrenzt. Code: [`src/schulblick/ics_import.py`](src/schulblick/ics_import.py).
 
+## KI-Zusatz (optional)
+
+Mit einem Anthropic-API-Schlüssel ergänzt der worker vier Dinge. Ohne Schlüssel, bei leerem Guthaben oder wenn die
+API nicht antwortet, zeigt Schulblick einfach wie bisher die Originaltexte. Die KI ist ein Zusatz, keine Abhängigkeit.
+
+| Funktion | Wann | Was man sieht |
+|---|---|---|
+| **Kurzfassung** | einmal pro neuer oder geänderter Nachricht, direkt nach dem Abruf | 2–3 Sätze unter dem Betreff; der Originaltext bleibt aufklappbar |
+| **Aufgaben und Fristen** | im selben Aufruf | Abschnitt „☐ Unterschrift … bis Di 27.10.“ an der Nachricht; Aufgaben mit Datum zusätzlich als *Aufgabe* in „Die nächsten Tage“ |
+| **Zuordnung als Rückfall** | nur wenn die Regeln in `assign.py` kein Kind finden | Die Nachricht bekommt die Kinder, die die KI aus Empfängern und Text erkennt. Kinder sehen sie nur, wenn sie an Lernende ging. |
+| **Morgenübersicht** | täglich um `digest_time` (06:15), nach einem frischen Abruf | Karte „Heute früh“ oben: für Eltern ein Absatz pro Kind, für Kinder einer in der Du-Form |
+
+**Technik.** Modell `claude-haiku-5-5` mit erzwungenem Werkzeugaufruf (`record_message`), damit die Antwort immer
+gültiges JSON ist. Ergebnisse liegen in SQLite (`message_ai`, `daily_digests`); jede Nachricht wird nur einmal
+geschickt, außer ihr Text ändert sich. Nach drei Fehlversuchen gibt der worker eine Nachricht auf. Jeder Aufruf
+landet mit Tokenzahl in `ai_usage`; die Eltern sehen im Abrufstatus die Aufrufe des Tages und den letzten Fehler.
+`max_calls_per_day` ist eine zweite Bremse neben dem Ausgabenlimit in der Console. Code:
+[`src/schulblick/ai.py`](src/schulblick/ai.py).
+
+**Einrichten.**
+
+1. In der [Anthropic Console](https://console.anthropic.com) einen eigenen Arbeitsbereich `schulblick` anlegen,
+   dort ein Ausgabenlimit (z. B. 20 $ im Monat) setzen und einen API-Schlüssel erzeugen.
+2. Auf dem Server: `sudo bash deploy/ki-schluessel.sh` – fragt den Schlüssel verdeckt ab, legt ihn als
+   `secrets/anthropic_key` (Benutzer 10001, Rechte 0400) ab, startet den worker neu und zeigt `ai-status`.
+3. Ausschalten: `sudo bash deploy/ki-schluessel.sh --aus` oder `[ai] enabled = false`.
+
+| Schlüssel in `[ai]` | Standard | Bedeutung |
+|---|---|---|
+| `enabled` | `true` | KI nutzen, sofern ein Schlüssel da ist |
+| `model` | `claude-haiku-5-5` | Modell für Nachrichten |
+| `digest_model` | wie `model` | Modell für die Morgenübersicht; `claude-sonnet-5-5` schreibt etwas runder, kostet mehr |
+| `digest_time` | `06:15` | Uhrzeit der Morgenübersicht |
+| `max_calls_per_day` | `150` | Höchstzahl der API-Aufrufe pro Tag |
+| `include_attendance` | `false` | Anwesenheitsdaten an die KI geben (bleibt aus) |
+
+**Datenschutz.** Der Schlüssel ist ein zweites Docker-Secret und steckt nur im worker; der web-Container sieht ihn
+nie. An die API gehen Betreff, Absender, Empfängergruppen und Text der Nachrichten sowie für die Morgenübersicht
+Vertretungen, Arbeiten, offene Hausaufgaben, Aufgaben und Familientermine. **Anwesenheitsdaten werden nicht
+geschickt.** Nach Anthropics kommerziellen Bedingungen werden API-Daten standardmäßig nicht zum Training genutzt.
+
+**Kosten.** Eine Nachricht braucht mit Haiku grob 1 000–2 000 Tokens, die Morgenübersicht ebenso viel pro Person
+(beide Eltern teilen sich einen Aufruf). Bei einer Handvoll Nachrichten am Tag liegt das bei wenigen Cent am Tag;
+die tatsächlichen Zahlen stehen im Abrufstatus und in der Console.
+
 ## Aufbau des Projekts
 
 ```
@@ -159,6 +207,7 @@ Dateien und Kalender sind auf 5 MB begrenzt. Code: [`src/schulblick/ics_import.p
 │   ├── ANLEITUNG.md            # Schritt-für-Schritt-Einrichtung auf dem Server
 │   ├── setup.sh                # Ersteinrichtung auf dem Server
 │   ├── update.sh               # neu bauen und starten nach einem Update
+│   ├── ki-schluessel.sh        # Anthropic-Schlüssel setzen oder leeren
 │   └── nginx/                  # vHost, Proxy-Snippet, Ratenbegrenzung, Start-vHost für certbot
 ├── docker-compose.yml          # web (127.0.0.1:8130) und worker, schreibgeschützte Container
 ├── Dockerfile
@@ -180,7 +229,8 @@ Dateien und Kalender sind auf 5 MB begrenzt. Code: [`src/schulblick/ics_import.p
 │   │   ├── calendar.py         # Kalenderansicht und ICS-Abo
 │   │   ├── templates/          # Jinja2-Vorlagen
 │   │   └── static/             # CSS, Icons, Web-Manifest, kleines JS (Link kopieren)
-│   ├── cli.py                  # Verwaltungsbefehle (Passwörter, Abruf, Anmeldetest)
+│   ├── ai.py                   # KI-Zusatz: Kurzfassung, Aufgaben, Zuordnung, Morgenübersicht
+│   ├── cli.py                  # Verwaltungsbefehle (Passwörter, Abruf, Anmeldetest, KI-Status)
 │   ├── config.py
 │   ├── db.py                   # SQLite-Schema und Hilfsfunktionen
 │   ├── fixtures.py             # Offline-Client, der gespeicherte Seiten liest
@@ -251,6 +301,9 @@ Alle Befehle im Ordner `/opt/schulblick` und mit `sudo` ausführen.
 | Sofort abrufen | `docker compose run --rm worker schulblick sync [lessons timetables substitutions calendar messages]` |
 | Log des Abrufs | `docker compose logs -f worker` |
 | Letzte Abrufe | `docker compose exec worker sqlite3 -column /data/schulblick.db "SELECT area, ok, message, finished_at FROM sync_runs ORDER BY id DESC LIMIT 6"` |
+| KI-Status (Schlüssel, Aufrufe, Fehler) | `docker compose exec worker schulblick ai-status` |
+| Nachrichten sofort zusammenfassen | `docker compose exec worker schulblick ai-run` |
+| Morgenübersicht jetzt schreiben | `docker compose exec worker schulblick ai-digest --neu` |
 | Verbundene Kalender sofort abrufen | im Browser: *Kalender → Outlook-Import → Jetzt abrufen* |
 | Portal-Passwort geändert | `secrets/sph_credentials` anpassen, dann `docker compose restart worker` |
 
@@ -288,6 +341,8 @@ anonymisiert als Testdatei, passt den Parser an und ergänzt einen Test.
   Herkunftsprüfung bei jedem POST.
 * Datensparsamkeit: Nachrichten bleiben 30 Tage, nicht mehr aktive Hausaufgaben 60 Tage, Vertretungen 7 Tage; von
   der Anwesenheit nur die aktuellen Summen. Die nächtlichen Sicherungen werden 7 Tage im Datenvolume aufbewahrt.
+* Der optionale KI-Schlüssel liegt nur in `secrets/anthropic_key` und im worker-Container. Anwesenheitsdaten gehen
+  nie an die KI; Details im Abschnitt [KI-Zusatz](#ki-zusatz-optional).
 * Kalender-Abo-Links sind zufällige Tokens pro Person; ein neuer Link macht den alten sofort ungültig.
 * `config/family.toml` enthält Vornamen und die Schule. Das Repository muss deshalb privat bleiben.
 
@@ -304,7 +359,7 @@ anonymisiert als Testdatei, passt den Parser an und ergänzt einen Test.
 ## Ausblick
 
 * Push-Benachrichtigung bei Unterrichtsausfall am nächsten Tag oder neuen Nachrichten
-* Morgenübersicht per Nachricht
+* Morgenübersicht zusätzlich per Push oder Mail
 
 ## Dank
 

@@ -30,6 +30,13 @@ class Worker:
         self.conn = db.connect(settings.db_path)
         self.client: SPHClient | None = None
         self._creds_mtime: float | None = None
+        from ..ai import AIClient
+
+        self.ai = AIClient(settings, self.conn)
+        if self.ai.available:
+            log.info("AI layer active (model %s, morning summary %s)", settings.ai.model, settings.ai.digest_time)
+        else:
+            log.info("AI layer off (no key in %s or [ai] enabled = false)", settings.ai.secret_path)
 
     # -- blocking after auth problems -----------------------------------------------------
 
@@ -81,7 +88,8 @@ class Worker:
             log.warning("Portal access blocked (%s) – skipping %s", self._meta("portal_block"), ",".join(areas))
             return
         try:
-            results = Syncer(self.s, self.conn, self._client()).run(areas)
+            ai = self.ai if self.ai.available else None
+            results = Syncer(self.s, self.conn, self._client(), ai=ai).run(areas)
             log.info("sync %s", results)
         except WrongCredentials as exc:
             mtime = self.s.sph_secret_path.stat().st_mtime
@@ -102,6 +110,21 @@ class Worker:
             sync_all_feeds(self.conn, self.s.tz)
         except Exception:  # noqa: BLE001 - never let a feed stop the scheduler
             log.exception("calendar feed sync failed")
+
+    def morning_digest(self) -> None:
+        """Fresh data first (unless a sync just ran), then one short summary per account."""
+        from ..ai import build_digests
+
+        if not self.ai.available:
+            return
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(timespec="seconds")
+        if not self.conn.execute("SELECT 1 FROM sync_runs WHERE area='messages' AND ok=1 AND finished_at >= ?",
+                                 (recent,)).fetchone():
+            self.sync(FREQUENT)
+        try:
+            log.info("morning summary: %s", build_digests(self.conn, self.s, self.ai))
+        except Exception:  # noqa: BLE001
+            log.exception("morning summary failed")
 
     def backup(self) -> None:
         target_dir = self.s.db_path.parent / "backups"
@@ -124,6 +147,8 @@ class Worker:
         self.conn.execute("DELETE FROM login_failures WHERE at < ?", (day_ago,))
         month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(timespec="seconds")
         self.conn.execute("DELETE FROM sync_runs WHERE started_at < ?", (month_ago,))
+        quarter_ago = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat(timespec="seconds")
+        self.conn.execute("DELETE FROM ai_usage WHERE at < ?", (quarter_ago,))
 
     # -- schedule -----------------------------------------------------------------------
 
@@ -147,6 +172,8 @@ class Worker:
         add(self.sync, CronTrigger(day_of_week="sun", hour="17", minute="40", timezone=tz),
             args=[("timetables",)], id="weekly")
         add(self.sync_feeds, CronTrigger(minute="20", timezone=tz), id="calendar-feeds")
+        hh, _, mm = self.s.ai.digest_time.partition(":")
+        add(self.morning_digest, CronTrigger(hour=int(hh), minute=int(mm or 0), timezone=tz), id="morning-digest")
         add(self.backup, CronTrigger(hour="3", minute="30", timezone=tz), id="backup")
         add(self.housekeeping, CronTrigger(hour="3", minute="45", timezone=tz), id="housekeeping")
 

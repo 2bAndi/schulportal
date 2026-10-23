@@ -39,6 +39,10 @@ else
 fi
 chown "$CONTAINER_UID:$CONTAINER_UID" secrets/sph_credentials
 chmod 400 secrets/sph_credentials
+# optional AI key (empty file = AI off); set it later with deploy/ki-schluessel.sh
+if [[ ! -e secrets/anthropic_key ]]; then
+  install -m 400 -o "$CONTAINER_UID" -g "$CONTAINER_UID" /dev/null secrets/anthropic_key
+fi
 
 say "3/6  Container bauen und starten"
 # the container runs as uid 10001 and must be able to read the config

@@ -34,11 +34,14 @@ services:
       disable: true
     secrets:
       - sph_credentials
+      - anthropic_key   # optional: empty file = AI layer off. Only the worker gets it, never the web container.
     networks: [egress]
 
 secrets:
   sph_credentials:
     file: ./secrets/sph_credentials
+  anthropic_key:
+    file: ./secrets/anthropic_key
 
 volumes:
   schulblick-data:
