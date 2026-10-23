@@ -246,3 +246,15 @@ h2 small a { color: var(--chalk); }
 .evform select { font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); width: 100%; }
 .alert.info { background: var(--chalk-bg); color: var(--ink); border-color: transparent; }
 .rep { font: 400 .72rem var(--f-mono); color: var(--chalk); white-space: nowrap; }
+
+/* import */
+.evform.plain { padding: 0; border: 0; background: none; }
+.howto-box summary { cursor: pointer; color: var(--chalk); font-size: .9rem; }
+.howto-box[open] summary { margin-bottom: 8px; }
+.feeds { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.feeds li { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+.feeds li:first-child { border-top: 0; padding-top: 0; }
+.fhead { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.mono { font-family: var(--f-mono); font-size: .78rem; overflow-wrap: anywhere; }
+.inline-del { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.inline-del .check { display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; }

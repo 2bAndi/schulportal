@@ -94,6 +94,15 @@ class Worker:
         except PortalDown as exc:
             log.warning("Portal down: %s", exc)
 
+    def sync_feeds(self) -> None:
+        """Refresh subscribed calendars (Outlook etc.)."""
+        from ..ics_import import sync_all_feeds
+
+        try:
+            sync_all_feeds(self.conn, self.s.tz)
+        except Exception:  # noqa: BLE001 - never let a feed stop the scheduler
+            log.exception("calendar feed sync failed")
+
     def backup(self) -> None:
         target_dir = self.s.db_path.parent / "backups"
         target_dir.mkdir(exist_ok=True)
@@ -137,11 +146,13 @@ class Worker:
         add(self.sync, CronTrigger(hour="5", minute="30", timezone=tz), args=[DAILY], id="daily")
         add(self.sync, CronTrigger(day_of_week="sun", hour="17", minute="40", timezone=tz),
             args=[("timetables",)], id="weekly")
+        add(self.sync_feeds, CronTrigger(minute="20", timezone=tz), id="calendar-feeds")
         add(self.backup, CronTrigger(hour="3", minute="30", timezone=tz), id="backup")
         add(self.housekeeping, CronTrigger(hour="3", minute="45", timezone=tz), id="housekeeping")
 
         log.info("Initial full sync")
         self.sync(FULL)
+        self.sync_feeds()
         sched.start()
 
 

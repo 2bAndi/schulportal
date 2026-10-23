@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import __version__, db
+from .. import __version__, db, ics_import
 from ..config import Settings, get_settings
 from . import auth, calendar, family
 from .views import OverviewBuilder
@@ -211,7 +211,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         calendar.ics_token(conn, user, rotate=True)
         return RedirectResponse("/kalender/abo?neu=1", status_code=303)
 
-    @app.get("/kalender/{event_id}", response_class=HTMLResponse)
+    @app.get("/kalender/{event_id:int}", response_class=HTMLResponse)
     def edit_event_form(request: Request, event_id: int, am: str | None = None, conn=Depends(get_conn)):
         user = current_user(request, conn)
         if user is None:
@@ -224,7 +224,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return form_page(request, conn, user, family.form_values(ev, None, own, user.is_parent), [], event=ev,
                          occurrence=occurrence)
 
-    @app.post("/kalender/{event_id}", response_class=HTMLResponse)
+    @app.post("/kalender/{event_id:int}", response_class=HTMLResponse)
     async def update_event(request: Request, event_id: int, conn=Depends(get_conn)):
         user = current_user(request, conn)
         if user is None:
@@ -242,7 +242,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         family.save_event(conn, user, res.data, event_id=event_id)
         return RedirectResponse(f"/kalender?von={res.data['start'][:10]}&ok=1", status_code=303)
 
-    @app.post("/kalender/{event_id}/loeschen")
+    @app.post("/kalender/{event_id:int}/loeschen")
     async def remove_event(request: Request, event_id: int, conn=Depends(get_conn)):
         user = current_user(request, conn)
         if user is None:
@@ -260,6 +260,106 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return RedirectResponse(f"/kalender?von={day.isoformat()}&ok=3", status_code=303)
         family.delete_event(conn, event_id)
         return RedirectResponse(f"/kalender?von={(day or ev.first_day).isoformat()}&ok=2", status_code=303)
+
+    # -- Outlook / iCalendar import (parents only) -------------------------------------------
+
+    def import_page(request, conn, user, message=None, error=None, status=200):
+        feeds = conn.execute("SELECT * FROM calendar_feeds ORDER BY id").fetchall()
+        counts = {r["source"]: r["n"] for r in conn.execute(
+            "SELECT source, COUNT(*) AS n FROM family_events WHERE source IS NOT NULL GROUP BY source")}
+        return templates.TemplateResponse(request, "import.html", {
+            "user": user, "kids": kids_for_form(conn), "feeds": feeds, "counts": counts, "message": message,
+            "error": error, "version": __version__, "active": "kalender"}, status_code=status)
+
+    def import_audience(form, conn) -> list[str]:
+        raw = [a for a in form.getlist("audience") if a]
+        if family.EVERYONE in raw:
+            return [family.EVERYONE]
+        kids = sorted({a for a in raw if a in {k.id for k in kids_for_form(conn)}})
+        return kids or [family.PARENTS]
+
+    def parent_or_none(request, conn):
+        user = current_user(request, conn)
+        return user if user is not None and user.is_parent else None
+
+    @app.get("/kalender/import", response_class=HTMLResponse)
+    def import_form(request: Request, conn=Depends(get_conn)):
+        user = parent_or_none(request, conn)
+        if user is None:
+            return RedirectResponse("/kalender", status_code=303)
+        return import_page(request, conn, user, message=request.query_params.get("msg"))
+
+    @app.post("/kalender/import/datei", response_class=HTMLResponse)
+    async def import_file(request: Request, conn=Depends(get_conn)):
+        user = parent_or_none(request, conn)
+        if user is None:
+            return RedirectResponse("/kalender", status_code=303)
+        form = await request.form()
+        upload = form.get("file")
+        if upload is None or not getattr(upload, "filename", ""):
+            return import_page(request, conn, user, error="Bitte eine .ics-Datei auswählen.", status=400)
+        data = await upload.read(ics_import.MAX_BYTES + 1)
+        try:
+            items = ics_import.parse_file(data, settings.tz, today(), form.get("private_mode") or "hide")
+        except ics_import.ImportError_ as exc:
+            return import_page(request, conn, user, error=str(exc), status=400)
+        if not items:
+            return import_page(request, conn, user, error="In der Datei wurden keine Termine gefunden.", status=400)
+        new, updated = ics_import.import_items(conn, items, import_audience(form, conn), user.id, user.display_name)
+        msg = f"{new} Termine übernommen" + (f", {updated} aktualisiert" if updated else "") + "."
+        return RedirectResponse("/kalender/import?msg=" + msg.replace(" ", "+"), status_code=303)
+
+    @app.post("/kalender/import/abo", response_class=HTMLResponse)
+    async def add_feed(request: Request, conn=Depends(get_conn)):
+        user = parent_or_none(request, conn)
+        if user is None:
+            return RedirectResponse("/kalender", status_code=303)
+        form = await request.form()
+        name = (form.get("name") or "").strip()[:60] or "Outlook"
+        try:
+            url = ics_import.normalise_url(form.get("url") or "")
+        except ics_import.ImportError_ as exc:
+            return import_page(request, conn, user, error=str(exc), status=400)
+        private_mode = form.get("private_mode") if form.get("private_mode") in ("hide", "show", "skip") else "hide"
+        cur = conn.execute(
+            "INSERT INTO calendar_feeds(name, url, audience, private_mode, created_by, created_at) VALUES(?,?,?,?,?,?)",
+            (name, url, db.dumps(import_audience(form, conn)), private_mode, user.id, db.utcnow()))
+        ok, msg = ics_import.sync_feed(conn, cur.lastrowid, settings.tz, today())
+        text = f"Kalender „{name}“ verbunden: {msg}." if ok else f"Kalender „{name}“ gespeichert, aber der Abruf klappte nicht: {msg}"
+        return RedirectResponse("/kalender/import?msg=" + text.replace(" ", "+"), status_code=303)
+
+    @app.post("/kalender/import/abo/{feed_id}/abrufen")
+    def refresh_feed(request: Request, feed_id: int, conn=Depends(get_conn)):
+        user = parent_or_none(request, conn)
+        if user is None:
+            return RedirectResponse("/kalender", status_code=303)
+        ok, msg = ics_import.sync_feed(conn, feed_id, settings.tz, today())
+        return RedirectResponse("/kalender/import?msg=" + (("Abgerufen: " if ok else "Fehler: ") + msg).replace(" ", "+"),
+                                status_code=303)
+
+    @app.post("/kalender/import/abo/{feed_id}/loeschen")
+    async def remove_feed(request: Request, feed_id: int, conn=Depends(get_conn)):
+        user = parent_or_none(request, conn)
+        if user is None:
+            return RedirectResponse("/kalender", status_code=303)
+        form = await request.form()
+        if form.get("confirm") == "ja":
+            with db.transaction(conn):
+                conn.execute("DELETE FROM family_events WHERE source=?", (f"feed:{feed_id}",))
+                conn.execute("DELETE FROM calendar_feeds WHERE id=?", (feed_id,))
+            return RedirectResponse("/kalender/import?msg=Verbindung+und+ihre+Termine+entfernt.", status_code=303)
+        return RedirectResponse("/kalender/import", status_code=303)
+
+    @app.post("/kalender/import/datei/loeschen")
+    async def remove_file_import(request: Request, conn=Depends(get_conn)):
+        user = parent_or_none(request, conn)
+        if user is None:
+            return RedirectResponse("/kalender", status_code=303)
+        form = await request.form()
+        if form.get("confirm") == "ja":
+            n = conn.execute("DELETE FROM family_events WHERE source='file'").rowcount
+            return RedirectResponse(f"/kalender/import?msg={n}+importierte+Termine+gelöscht.", status_code=303)
+        return RedirectResponse("/kalender/import", status_code=303)
 
     @app.get("/ics/{token}.ics")
     def ics_feed(token: str, conn=Depends(get_conn)):

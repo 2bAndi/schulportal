@@ -56,6 +56,8 @@ class FamilyEvent:
     repeat_until: date | None = None
     exdates: list[str] = field(default_factory=list)
     skip_holidays: bool = False
+    source: str | None = None
+    readonly: bool = False
     can_edit: bool = False
     occurrence: date | None = None  # set on expanded occurrences of a series
 
@@ -126,7 +128,9 @@ def _row_to_event(row: sqlite3.Row, user: User) -> FamilyEvent:
         repeat_until=date.fromisoformat(row["repeat_until"]) if "repeat_until" in keys and row["repeat_until"] else None,
         exdates=db.loads(row["exdates"], []) if "exdates" in keys else [],
         skip_holidays=bool(row["skip_holidays"]) if "skip_holidays" in keys else False,
-        can_edit=may_edit(user, row["created_by"]),
+        source=row["source"] if "source" in keys else None,
+        readonly=bool(row["readonly"]) if "readonly" in keys else False,
+        can_edit=may_edit(user, row["created_by"]) and not ("readonly" in keys and row["readonly"]),
     )
 
 

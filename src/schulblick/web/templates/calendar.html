@@ -37,6 +37,7 @@
     <a class="btn-link" href="/kalender?von={{ a.next }}" aria-label="Vier Wochen weiter">Später ›</a>
   </div>
   <div class="pager">
+    {% if user.is_parent %}<a class="btn-link" href="/kalender/import">Outlook-Import</a>{% endif %}
     <a class="btn-link" href="/kalender/abo">Kalender-Abo</a>
     <a class="btn-primary" href="/kalender/neu">+ Neuer Termin</a>
   </div>

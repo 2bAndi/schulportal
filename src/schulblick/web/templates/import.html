@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% macro audience_fields(prefix) %}
+  <fieldset>
+    <legend>Wer soll die Termine sehen?</legend>
+    <label class="check"><input type="checkbox" name="audience" value="*"> Ganze Familie</label>
+    {% for k in kids %}
+    <label class="check"><input type="checkbox" name="audience" value="{{ k.id }}"> <span class="chip k{{ k.slot }}">{{ k.name }}</span></label>
+    {% endfor %}
+    <p class="note">Ohne Häkchen sehen nur Mama und Papa die Termine.</p>
+  </fieldset>
+  <fieldset>
+    <legend>Private Termine aus Outlook</legend>
+    <label class="check"><input type="radio" name="private_mode" value="hide" checked> <span>als „Privater Termin“ zeigen, ohne Titel und Ort</span></label>
+    <label class="check"><input type="radio" name="private_mode" value="show"> <span>normal mit Titel zeigen</span></label>
+    <label class="check"><input type="radio" name="private_mode" value="skip"> <span>weglassen</span></label>
+  </fieldset>
+{% endmacro %}
+{% block title %}Outlook-Import · Schulblick{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+
+<header class="top">
+  <div>
+    <p class="meta"><a href="/kalender">‹ zurück zum Kalender</a></p>
+    <h1>Outlook-Import</h1>
+  </div>
+</header>
+
+{% if message %}<div class="alert ok" role="status">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert crit" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card sub">
+  <h2>Outlook-Kalender verbinden</h2>
+  <p>Termine erscheinen im Familienkalender und bleiben aktuell: Schulblick holt den Kalender jede Stunde neu.
+  Geändert wird weiter in Outlook, hier sind die Termine nur zum Lesen.</p>
+  <details class="howto-box">
+    <summary>Wo finde ich den Link?</summary>
+    <ul class="howto">
+      <li><b>Outlook im Web</b> (outlook.com oder Microsoft 365): Zahnrad → Kalender → Freigegebene Kalender →
+        „Kalender veröffentlichen“ → Kalender und „Kann alle Details anzeigen“ wählen → Veröffentlichen →
+        den <b>ICS</b>-Link kopieren.</li>
+      <li><b>Firmenkalender:</b> Bei vielen Firmen ist das Veröffentlichen gesperrt oder nicht erlaubt.
+        Dann lieber die Datei-Variante unten nutzen und nur private Termine übernehmen.</li>
+    </ul>
+  </details>
+  <form method="post" action="/kalender/import/abo" class="evform plain">
+    <label for="feed-name">Name im Schulblick
+      <input id="feed-name" name="name" maxlength="60" placeholder="z. B. Outlook Papa" required>
+    </label>
+    <label for="feed-url">ICS-Link
+      <input id="feed-url" name="url" class="mono" placeholder="https://outlook.office365.com/owa/calendar/…/calendar.ics" required>
+    </label>
+    {{ audience_fields('feed') }}
+    <div class="actions"><button class="btn-primary" type="submit">Verbinden</button></div>
+  </form>
+</section>
+
+{% if feeds %}
+<section class="card sub">
+  <h2>Verbundene Kalender</h2>
+  <ul class="feeds">
+    {% for f in feeds %}
+    <li>
+      <div class="fhead"><b>{{ f.name }}</b>
+        <span class="{{ 'ok' if f.last_ok else 'bad' }}">{{ f.last_message or 'noch nicht abgerufen' }}</span></div>
+      <p class="note mono">{{ f.url[:60] }}{% if f.url|length > 60 %}…{% endif %}</p>
+      <p class="note">Zuletzt abgerufen: {{ f.last_sync[:16].replace('T', ' ') ~ ' UTC' if f.last_sync else 'nie' }}</p>
+      <div class="actions">
+        <form method="post" action="/kalender/import/abo/{{ f.id }}/abrufen"><button class="btn-link" type="submit">Jetzt abrufen</button></form>
+        <form method="post" action="/kalender/import/abo/{{ f.id }}/loeschen" class="inline-del">
+          <label class="check"><input type="checkbox" name="confirm" value="ja" required> sicher</label>
+          <button class="btn-link" type="submit">Verbindung entfernen</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card sub">
+  <h2>Einmalig aus einer Datei übernehmen</h2>
+  <p>Die Termine werden normale Familientermine, die ihr hier weiter bearbeiten könnt. Einfache Serien
+  (täglich, wöchentlich, alle 2 Wochen, monatlich, jährlich) bleiben Serien; kompliziertere werden für die nächsten
+  zwei Jahre als einzelne Termine übernommen. Lädst du dieselbe Datei noch einmal hoch, werden die Termine aktualisiert statt doppelt angelegt.</p>
+  <details class="howto-box">
+    <summary>Wie bekomme ich die Datei?</summary>
+    <ul class="howto">
+      <li><b>Outlook am Windows-PC (klassisch):</b> Kalender öffnen → Datei → Kalender speichern →
+        „Weitere Optionen“ → Datumsbereich und „Alle Details“ wählen → als .ics speichern.</li>
+      <li><b>Neues Outlook / Outlook im Web:</b> einen einzelnen Termin öffnen → „…“ → Herunterladen;
+        für den ganzen Kalender besser oben „Outlook-Kalender verbinden“ nutzen.</li>
+      <li>Auch .ics-Dateien von Vereinen, Schulen oder Google funktionieren.</li>
+    </ul>
+  </details>
+  <form method="post" action="/kalender/import/datei" enctype="multipart/form-data" class="evform plain">
+    <label for="file">Kalenderdatei (.ics, höchstens 5 MB)
+      <input id="file" name="file" type="file" accept=".ics,text/calendar" required>
+    </label>
+    {{ audience_fields('file') }}
+    <div class="actions"><button class="btn-primary" type="submit">Importieren</button></div>
+  </form>
+  {% if counts.get('file') %}
+  <form method="post" action="/kalender/import/datei/loeschen" class="inline-del">
+    <p class="note">{{ counts.get('file') }} Termine stammen aus Datei-Importen.</p>
+    <label class="check"><input type="checkbox" name="confirm" value="ja" required> sicher</label>
+    <button class="btn-link" type="submit">Alle importierten Termine löschen</button>
+  </form>
+  {% endif %}
+</section>
+
+</div>
+{% endblock %}

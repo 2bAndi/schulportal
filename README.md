@@ -25,6 +25,7 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 - [So funktioniert es](#so-funktioniert-es)
 - [Wer sieht was](#wer-sieht-was)
 - [Familienkalender](#familienkalender)
+- [Outlook-Import](#outlook-import)
 - [Aufbau des Projekts](#aufbau-des-projekts)
 - [Konfiguration](#konfiguration)
 - [Installation auf dem Server](#installation-auf-dem-server)
@@ -134,6 +135,21 @@ und im ICS-Abo in einzelne Termine aufgelöst, damit ausgelassene Ferientage auc
 [`src/schulblick/web/family.py`](src/schulblick/web/family.py), Kalenderansicht und ICS in
 [`src/schulblick/web/calendar.py`](src/schulblick/web/calendar.py).
 
+## Outlook-Import
+
+Unter *Kalender → Outlook-Import* holen Mama und Papa Termine aus Outlook (oder jeder anderen .ics-Quelle) in den
+Familienkalender. Bei jedem Import legen sie fest, wer die Termine sieht; ohne Auswahl nur die Eltern. Termine, die
+in Outlook als *privat* markiert sind, erscheinen wahlweise als „Privater Termin“ ohne Details, normal oder gar nicht.
+
+| Weg | Wofür | Verhalten |
+|---|---|---|
+| **Outlook-Kalender verbinden** | dauerhaft aktuell | Veröffentlichungs-Link aus Outlook im Web (outlook.com oder Microsoft 365: Einstellungen → Kalender → Freigegebene Kalender → *Kalender veröffentlichen* → ICS-Link). Der worker holt ihn jede Stunde (Minute 20); die Termine sind im Schulblick nur zum Lesen und werden bei jedem Abruf komplett ersetzt. |
+| **Datei importieren** | einmalig übernehmen | .ics-Datei, z. B. aus dem klassischen Outlook (*Datei → Kalender speichern*). Die Termine werden normale, bearbeitbare Familientermine. Einfache Serien bleiben Serien, kompliziertere (z. B. „jeden 2. Donnerstag im Monat“) werden für zwei Jahre als Einzeltermine angelegt. Erneutes Hochladen aktualisiert statt zu verdoppeln. |
+
+Zeitzonen aus Outlook (z. B. „W. Europe Standard Time“), Sommerzeitwechsel, Ausnahmen (EXDATE) und abgesagte
+Termine werden berücksichtigt. Links müssen `https://` oder `webcal://` sein und dürfen nicht ins Heimnetz zeigen;
+Dateien und Kalender sind auf 5 MB begrenzt. Code: [`src/schulblick/ics_import.py`](src/schulblick/ics_import.py).
+
 ## Aufbau des Projekts
 
 ```
@@ -167,7 +183,8 @@ und im ICS-Abo in einzelne Termine aufgelöst, damit ausgelassene Ferientage auc
 │   ├── cli.py                  # Verwaltungsbefehle (Passwörter, Abruf, Anmeldetest)
 │   ├── config.py
 │   ├── db.py                   # SQLite-Schema und Hilfsfunktionen
-│   └── fixtures.py             # Offline-Client, der gespeicherte Seiten liest
+│   ├── fixtures.py             # Offline-Client, der gespeicherte Seiten liest
+│   └── ics_import.py           # Outlook-/iCalendar-Import: Datei und verbundene Kalender
 └── tests/                      # pytest-Tests und anonymisierte Portalseiten
 ```
 
@@ -234,6 +251,7 @@ Alle Befehle im Ordner `/opt/schulblick` und mit `sudo` ausführen.
 | Sofort abrufen | `docker compose run --rm worker schulblick sync [lessons timetables substitutions calendar messages]` |
 | Log des Abrufs | `docker compose logs -f worker` |
 | Letzte Abrufe | `docker compose exec worker sqlite3 -column /data/schulblick.db "SELECT area, ok, message, finished_at FROM sync_runs ORDER BY id DESC LIMIT 6"` |
+| Verbundene Kalender sofort abrufen | im Browser: *Kalender → Outlook-Import → Jetzt abrufen* |
 | Portal-Passwort geändert | `secrets/sph_credentials` anpassen, dann `docker compose restart worker` |
 
 Lehnt das Portal die Zugangsdaten ab, hört der worker auf, es weiter zu versuchen, damit das Konto nicht gesperrt

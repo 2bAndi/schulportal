@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -151,12 +151,29 @@ CREATE TABLE IF NOT EXISTS family_events (
     repeat_until TEXT,                  -- last date of a series (inclusive), NULL = open-ended
     exdates TEXT NOT NULL DEFAULT '[]', -- JSON list of cancelled occurrence dates
     skip_holidays INTEGER NOT NULL DEFAULT 0, -- skip school holidays and days without school
+    source TEXT,                        -- NULL = entered in the app, "file" = .ics import, "feed:<id>" = subscription
+    ext_uid TEXT,                       -- UID from the imported calendar
+    readonly INTEGER NOT NULL DEFAULT 0,-- 1 for subscribed calendars (edit in Outlook, not here)
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_by_name TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS family_events_start ON family_events(start);
+
+-- Subscribed external calendars (e.g. a published Outlook calendar).
+CREATE TABLE IF NOT EXISTS calendar_feeds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    audience TEXT NOT NULL,             -- JSON, same meaning as family_events.audience
+    private_mode TEXT NOT NULL DEFAULT 'hide', -- hide | show | skip  (Outlook "private" entries)
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    last_sync TEXT,
+    last_ok INTEGER,
+    last_message TEXT
+);
 
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -224,6 +241,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
                       ("exdates", "TEXT NOT NULL DEFAULT '[]'"), ("skip_holidays", "INTEGER NOT NULL DEFAULT 0")):
         if name not in event_cols:
             conn.execute(f"ALTER TABLE family_events ADD COLUMN {name} {ddl}")
+    for name, ddl in (("source", "TEXT"), ("ext_uid", "TEXT"), ("readonly", "INTEGER NOT NULL DEFAULT 0")):
+        if name not in event_cols:
+            conn.execute(f"ALTER TABLE family_events ADD COLUMN {name} {ddl}")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS family_events_ext ON family_events(source, ext_uid) "
+                 "WHERE source IS NOT NULL")
 
 
 @contextmanager
