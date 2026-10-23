@@ -40,7 +40,8 @@ def tool_answer(data):
 
 
 def text_answer(text):
-    return Obj(content=[Obj(type="text", text=text)], usage=Obj(input_tokens=600, output_tokens=90))
+    return Obj(content=[Obj(type="tool_use", name="record_digest", input={"text": text})],
+               usage=Obj(input_tokens=600, output_tokens=90))
 
 
 @pytest.fixture()
@@ -177,6 +178,7 @@ def test_morning_summary_without_attendance(env):
     assert len(prompts) == 3 and not any("Anwesenheit" in p or "fehlend" in p for p in prompts)
     kid_prompt = next(p for p in prompts if "Kind Paul" in p)
     assert "## Paul" in kid_prompt and "## Max" not in kid_prompt and "## Lenchen" not in kid_prompt
+    assert all(c["tool_choice"] == {"type": "tool", "name": "record_digest"} for c in sdk.calls)
     # once per day
     ai.build_digests(conn, settings, client, today=now.date())
     assert len(sdk.calls) == 3
@@ -198,3 +200,13 @@ def test_overview_page_shows_ai_parts(env):
     html = c.get("/").text
     assert "Guten Morgen." in html and "Die Robotik-AG fährt am Freitag ins Museum." in html
     assert "Originaltext anzeigen" in html and "KI-Zusammenfassung" in html and 'class="ev todo' in html
+
+
+def test_empty_digest_reports_why(env):
+    settings, conn, now = env
+    empty = FakeSDK(lambda kw: Obj(content=[Obj(type="thinking", thinking="...")], stop_reason="max_tokens",
+                                   usage=Obj(input_tokens=600, output_tokens=1500)))
+    with pytest.raises(ai.AIUnavailable, match="max_tokens.*thinking"):
+        ai.AIClient(settings, conn, client=empty).digest("Eltern", "nichts")
+    plain = FakeSDK(lambda kw: Obj(content=[Obj(type="text", text="Alles ruhig.")], usage=None))
+    assert ai.AIClient(settings, conn, client=plain).digest("Eltern", "nichts") == "Alles ruhig."

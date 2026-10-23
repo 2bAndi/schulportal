@@ -70,6 +70,17 @@ Arbeiten in den nächsten Tagen, Fristen, offene Hausaufgaben. Ist nichts los, s
 Keine Überschriften, keine Aufzählungszeichen, höchstens 90 Wörter pro Kind."""
 
 
+DIGEST_TOOL = {
+    "name": "record_digest",
+    "description": "Speichert die Morgenübersicht.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"text": {"type": "string", "description": "Die Morgenübersicht als fertiger Text"}},
+        "required": ["text"],
+    },
+}
+
+
 @dataclass
 class MessageResult:
     summary: str
@@ -175,11 +186,20 @@ class AIClient:
     # -- morning summary -------------------------------------------------------------------
 
     def digest(self, audience: str, facts: str) -> str:
-        resp = self._create("digest", self.s.ai.digest_model, max_tokens=700, system=SYSTEM_DIGEST,
+        # forced tool call, like for messages: a plain text answer came back empty on the server
+        resp = self._create("digest", self.s.ai.digest_model, max_tokens=1500, system=SYSTEM_DIGEST,
+                            tools=[DIGEST_TOOL], tool_choice={"type": "tool", "name": "record_digest"},
                             messages=[{"role": "user", "content": f"Für: {audience}\n\nDaten:\n{facts}"}])
-        text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text").strip()
+        text = ""
+        for b in resp.content:
+            kind = getattr(b, "type", "")
+            if kind == "tool_use" and isinstance(getattr(b, "input", None), dict):
+                text = str(b.input.get("text") or "").strip() or text
+            elif kind == "text" and not text:
+                text = (getattr(b, "text", "") or "").strip()
         if not text:
-            raise AIUnavailable("leere Antwort")
+            kinds = ",".join(getattr(b, "type", "?") for b in resp.content) or "keine"
+            raise AIUnavailable(f"leere Antwort (stop_reason={getattr(resp, 'stop_reason', '?')}, Blöcke={kinds})")
         return text[:2500]
 
 
