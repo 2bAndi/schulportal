@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -14,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 from .. import __version__, db
 from ..config import Settings, get_settings
-from . import auth
+from . import auth, calendar, family
 from .views import OverviewBuilder
 
 log = logging.getLogger("schulblick.web")
@@ -121,7 +122,145 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return RedirectResponse("/login", status_code=303)
         since = auth.touch_visit(conn, user)
         ov = OverviewBuilder(conn, settings, user, since).build()
-        return templates.TemplateResponse(request, "overview.html", {"ov": ov, "version": __version__})
+        return templates.TemplateResponse(request, "overview.html", {"ov": ov, "version": __version__,
+                                                                         "active": "uebersicht"})
+
+    # -- family calendar -----------------------------------------------------------------
+
+    def current_user(request: Request, conn):
+        return auth.user_for_token(conn, request.cookies.get(auth.COOKIE_NAME))
+
+    def today() -> date:
+        return datetime.now(settings.tz).date()
+
+    def parse_day(value: str | None) -> date | None:
+        try:
+            return date.fromisoformat(value) if value else None
+        except ValueError:
+            return None
+
+    def kids_for_form(conn) -> list:
+        return OverviewBuilder(conn, settings, auth_parent_view, None).kids()
+
+    # a pseudo parent used only to list all children for the parent form
+    auth_parent_view = auth.User(id=0, username="", display_name="", role="parent", child_first_name=None,
+                                 has_totp=False, prev_visit=None)
+
+    def form_page(request, conn, user, values, errors, event=None, status=200):
+        own = family.child_id_for(conn, user)
+        return templates.TemplateResponse(request, "event_form.html", {
+            "user": user, "values": values, "errors": errors, "event": event, "own_child_id": own,
+            "kids": kids_for_form(conn) if user.is_parent else [], "version": __version__,
+            "active": "kalender",
+        }, status_code=status)
+
+    @app.get("/kalender", response_class=HTMLResponse)
+    def calendar_page(request: Request, von: str | None = None, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        start = family.week_start(parse_day(von) or today())
+        agenda = calendar.build_agenda(conn, settings, user, start, today=today())
+        return templates.TemplateResponse(request, "calendar.html", {
+            "user": user, "a": agenda, "version": __version__, "active": "kalender",
+            "saved": request.query_params.get("ok")})
+
+    @app.get("/kalender/neu", response_class=HTMLResponse)
+    def new_event_form(request: Request, datum: str | None = None, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        own = family.child_id_for(conn, user)
+        return form_page(request, conn, user, family.form_values(None, parse_day(datum) or today(), own,
+                                                                  user.is_parent), [])
+
+    @app.post("/kalender/neu", response_class=HTMLResponse)
+    async def create_event(request: Request, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        form = await request.form()
+        data = {k: form.get(k) for k in form.keys()}
+        data["audience"] = form.getlist("audience")
+        own = family.child_id_for(conn, user)
+        valid = {k.id for k in kids_for_form(conn)}
+        res = family.parse_form(data, user, own, valid)
+        if res.errors:
+            return form_page(request, conn, user, res.values, res.errors, status=400)
+        family.save_event(conn, user, res.data)
+        return RedirectResponse(f"/kalender?von={res.data['start'][:10]}&ok=1", status_code=303)
+
+    @app.get("/kalender/abo", response_class=HTMLResponse)
+    def subscribe_page(request: Request, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        token = calendar.ics_token(conn, user)
+        host = request.headers.get("host", "")
+        https_url = f"https://{host}/ics/{token}.ics"
+        return templates.TemplateResponse(request, "subscribe.html", {
+            "user": user, "https_url": https_url, "webcal_url": "webcal://" + https_url[len("https://"):],
+            "version": __version__, "active": "kalender", "rotated": request.query_params.get("neu")})
+
+    @app.post("/kalender/abo/neu")
+    def rotate_token(request: Request, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        calendar.ics_token(conn, user, rotate=True)
+        return RedirectResponse("/kalender/abo?neu=1", status_code=303)
+
+    @app.get("/kalender/{event_id}", response_class=HTMLResponse)
+    def edit_event_form(request: Request, event_id: int, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        ev = family.get_event(conn, user, event_id)
+        if ev is None or not ev.can_edit:
+            return PlainTextResponse("Diesen Termin gibt es nicht oder du darfst ihn nicht bearbeiten.", status_code=404)
+        own = family.child_id_for(conn, user)
+        return form_page(request, conn, user, family.form_values(ev, None, own, user.is_parent), [], event=ev)
+
+    @app.post("/kalender/{event_id}", response_class=HTMLResponse)
+    async def update_event(request: Request, event_id: int, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        ev = family.get_event(conn, user, event_id)
+        if ev is None or not ev.can_edit:
+            return PlainTextResponse("Diesen Termin gibt es nicht oder du darfst ihn nicht bearbeiten.", status_code=404)
+        form = await request.form()
+        data = {k: form.get(k) for k in form.keys()}
+        data["audience"] = form.getlist("audience")
+        own = family.child_id_for(conn, user)
+        res = family.parse_form(data, user, own, {k.id for k in kids_for_form(conn)})
+        if res.errors:
+            return form_page(request, conn, user, res.values, res.errors, event=ev, status=400)
+        family.save_event(conn, user, res.data, event_id=event_id)
+        return RedirectResponse(f"/kalender?von={res.data['start'][:10]}&ok=1", status_code=303)
+
+    @app.post("/kalender/{event_id}/loeschen")
+    async def remove_event(request: Request, event_id: int, conn=Depends(get_conn)):
+        user = current_user(request, conn)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        ev = family.get_event(conn, user, event_id)
+        if ev is None or not ev.can_edit:
+            return PlainTextResponse("Diesen Termin gibt es nicht oder du darfst ihn nicht löschen.", status_code=404)
+        form = await request.form()
+        if form.get("confirm") != "ja":
+            return RedirectResponse(f"/kalender/{event_id}", status_code=303)
+        family.delete_event(conn, event_id)
+        return RedirectResponse(f"/kalender?von={ev.first_day.isoformat()}&ok=2", status_code=303)
+
+    @app.get("/ics/{token}.ics")
+    def ics_feed(token: str, conn=Depends(get_conn)):
+        user = calendar.user_for_ics_token(conn, token)
+        if user is None:
+            return PlainTextResponse("Unbekannter Kalender-Link.", status_code=404)
+        body = calendar.build_ics(conn, settings, user, today=today())
+        return Response(body, media_type="text/calendar; charset=utf-8",
+                        headers={"Content-Disposition": 'inline; filename="schulblick.ics"'})
 
     return app
 

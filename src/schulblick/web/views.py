@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 from .. import db
 from ..config import Settings
 from ..sph.parsers import normalize_course
+from . import family as fam
 from .auth import User
 
 WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
@@ -90,6 +91,7 @@ class Overview:
     plan: list[dict] = field(default_factory=list)
     messages: list[dict] = field(default_factory=list)
     events: list[dict] = field(default_factory=list)
+    family: list = field(default_factory=list)
     attendance: list[dict] = field(default_factory=list)
     timetables: list[dict] = field(default_factory=list)
     status: list[dict] = field(default_factory=list)
@@ -147,12 +149,17 @@ class OverviewBuilder:
                       message_days=self.s.message_window_days, stale_weeks=max(1, self.s.homework_stale_days // 7))
         if not kids:
             ov.status = self._status()
+            ov.family = fam.list_events(self.conn, self.user, self.today,
+                                        self.today + timedelta(days=self.s.upcoming_days))
+            ov.days = self._upcoming(ov)
             return ov
         ov.homework = self._homework(scope)
         exams_all = self._events(scope, kinds=("exam", "test"), horizon=self.s.exams_horizon_days)
         ov.exams = exams_all
         ov.events = self._events(scope, kinds=("general", "holiday"), horizon=self.s.events_horizon_days)
         ov.plan = self._plan(scope)
+        ov.family = fam.list_events(self.conn, self.user, self.today,
+                                    self.today + timedelta(days=self.s.upcoming_days))
         ov.messages = self._messages(scope)
         if ov.show_attendance:
             ov.attendance = self._attendance(scope)
@@ -226,7 +233,8 @@ class OverviewBuilder:
             everyone = "*" in _ids(r["child_ids"])
             out.append({
                 "id": r["id"], "title": r["title"], "kind": r["kind"], "child_ids": [] if everyone else ids,
-                "everyone": everyone, "start": st, "first_day": first_day, "last_day": last_day,
+                "everyone": everyone, "start": st, "end": en, "all_day": bool(r["all_day"]),
+                "first_day": first_day, "last_day": last_day,
                 "time": "" if r["all_day"] else fmt_time(st),
                 "range": (f"{fmt_short(first_day)} – {fmt_short(last_day)}" if last_day != first_day else ""),
                 "location": r["location"], "description": r["description"], "group": r["group_name"],
@@ -362,6 +370,14 @@ class OverviewBuilder:
                 day = self.today
             add(day, {"type": e["kind"], "time": e["time"], "title": e["title"], "child_ids": e["child_ids"],
                       "note": e["range"] or e["location"] or "", "new": e["new"]})
+        for ev in ov.family:
+            rng = f"bis {fmt_short(ev.last_day)}" if ev.last_day != ev.first_day else ""
+            add(max(ev.first_day, self.today), {
+                "type": "family", "time": ev.time_label, "title": ev.title,
+                "child_ids": [] if ev.everyone or ev.parents_only else ev.child_ids,
+                "parents_only": ev.parents_only,
+                "note": " · ".join(x for x in (rng, ev.location) if x),
+                "new": self._is_new(ev.created_at, ev.updated_at) and ev.created_by != self.user.id})
         for d in ov.plan:
             for r in d["rows"]:
                 title = f"{r['subject_long'] or r['subject']}: {r['kind']}"
@@ -397,6 +413,11 @@ class OverviewBuilder:
                 if r["new"]:
                     items.append({"type": "plan", "title": f"{r['subject_long'] or r['subject']}: {r['kind']}",
                                   "child_ids": r["child_ids"], "note": d["label"], "anchor": "vertretungsplan"})
+        for ev in ov.family:
+            if ev.created_by != self.user.id and self._is_new(ev.created_at, ev.updated_at):
+                items.append({"type": "family", "title": ev.title,
+                              "child_ids": [] if ev.everyone or ev.parents_only else ev.child_ids,
+                              "note": f"{fmt_short(ev.first_day)} · von {ev.created_by_name}", "anchor": "tage"})
         for a in ov.attendance:
             if a["new"]:
                 items.append({"type": "attendance", "title": "Anwesenheit aktualisiert", "child_ids": [a["child_id"]],

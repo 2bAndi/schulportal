@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -137,6 +137,23 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL
 );
 
+-- Family calendar entries created in the app.
+CREATE TABLE IF NOT EXISTS family_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    start TEXT NOT NULL,                -- "YYYY-MM-DD" (all-day) or "YYYY-MM-DDTHH:MM" (local time)
+    end TEXT,                           -- same format; for all-day entries the last day (inclusive)
+    all_day INTEGER NOT NULL,
+    location TEXT,
+    note TEXT,
+    audience TEXT NOT NULL,             -- JSON: child ids, ["*"] = whole family, ["parents"] = parents only
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by_name TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS family_events_start ON family_events(start);
+
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -183,6 +200,7 @@ def init_db(path: Path | str) -> None:
     conn = connect(path)
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.execute(
             "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -190,6 +208,13 @@ def init_db(path: Path | str) -> None:
         )
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after the first release to existing databases."""
+    user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
+    if "ics_token" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN ics_token TEXT")
 
 
 @contextmanager

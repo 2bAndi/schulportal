@@ -26,6 +26,8 @@
   </div>
 </header>
 
+{% include "_tabs.html" %}
+
 {% if ov.portal_block %}
 <div class="alert crit" role="alert">Der Abruf aus dem Schulportal ist angehalten: {{ ov.portal_block.split('|')[-1] }}. Bitte Zugangsdaten auf dem Server prüfen.</div>
 {% endif %}
@@ -51,7 +53,7 @@
   <ul class="newlist card">
     {% for n in ov.new_items %}
     <li>
-      <span class="type">{{ {'message':'Nachricht','homework':'Hausaufgabe','exam':'Arbeit','test':'Lernkontrolle','plan':'Vertretung','attendance':'Anwesenheit'}.get(n.type, n.type) }}</span>
+      <span class="type">{{ {'message':'Nachricht','homework':'Hausaufgabe','exam':'Arbeit','test':'Lernkontrolle','plan':'Vertretung','attendance':'Anwesenheit','family':'Termin'}.get(n.type, n.type) }}</span>
       <a href="#{{ n.anchor }}">{{ n.title }}</a>
       <span>{{ chips(n.child_ids, not n.child_ids) }} <span class="note">{{ n.note }}</span></span>
     </li>
@@ -63,7 +65,7 @@
 {% endif %}
 
 <section id="tage">
-  <h2>Die nächsten Tage</h2>
+  <h2>Die nächsten Tage <small><a href="/kalender">ganzer Kalender</a> · <a href="/kalender/neu">+ Termin eintragen</a></small></h2>
   {% if ov.days %}
   <div class="days">
     {% for d in ov.days %}
@@ -71,7 +73,7 @@
       <p class="d"><b>{{ d.label }}</b>{% if d.week %}<span>{{ d.week }}-Woche</span>{% endif %}</p>
       {% for i in d['items'] %}
       <div class="ev {{ i.type }} {{ tone(i.child_ids) }}">
-        <span class="t">{% if i.time %}{{ i.time }}{% endif %}{{ chips(i.child_ids, not i.child_ids) }}{% if i.new %}<span class="new">neu</span>{% endif %}</span>
+        <span class="t">{% if i.time %}{{ i.time }}{% endif %}{% if i.parents_only %}<span class="chip all">Eltern</span>{% else %}{{ chips(i.child_ids, not i.child_ids) }}{% endif %}{% if i.new %}<span class="new">neu</span>{% endif %}</span>
         <strong>{{ i.title }}</strong>
         {% if i.note %}<span class="note">{{ i.note }}</span>{% endif %}
       </div>

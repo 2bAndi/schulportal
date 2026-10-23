@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Termin bearbeiten' if event else 'Neuer Termin' }} · Schulblick{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+
+<header class="top">
+  <div>
+    <p class="meta"><a href="/kalender{% if values.date %}?von={{ values.date }}{% endif %}">‹ zurück zum Kalender</a></p>
+    <h1>{{ 'Termin bearbeiten' if event else 'Neuer Termin' }}</h1>
+  </div>
+</header>
+
+{% if errors %}
+<div class="alert crit" role="alert">
+  {% for e in errors %}<p>{{ e }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form class="card evform" method="post" action="{{ '/kalender/%d' % event.id if event else '/kalender/neu' }}">
+  <label for="title">Was?
+    <input id="title" name="title" value="{{ values.title }}" maxlength="120" required autofocus placeholder="z. B. Zahnarzt, Training, Geburtstag Oma">
+  </label>
+
+  <div class="row2">
+    <label for="date">Datum
+      <input id="date" name="date" type="date" value="{{ values.date }}" required>
+    </label>
+    <label for="start_time">Uhrzeit <small>leer = ganztägig</small>
+      <input id="start_time" name="start_time" type="time" value="{{ values.start_time }}">
+    </label>
+  </div>
+
+  <div class="row2">
+    <label for="end_date">bis Datum <small>optional</small>
+      <input id="end_date" name="end_date" type="date" value="{{ values.end_date }}">
+    </label>
+    <label for="end_time">bis Uhrzeit <small>optional</small>
+      <input id="end_time" name="end_time" type="time" value="{{ values.end_time }}">
+    </label>
+  </div>
+
+  <label for="location">Wo? <small>optional</small>
+    <input id="location" name="location" value="{{ values.location }}" maxlength="200">
+  </label>
+
+  <label for="note">Notiz <small>optional</small>
+    <textarea id="note" name="note" rows="3" maxlength="2000">{{ values.note }}</textarea>
+  </label>
+
+  <fieldset>
+    <legend>Für wen?</legend>
+    {% if user.is_parent %}
+      <label class="check"><input type="checkbox" name="audience" value="*" {% if '*' in values.audience %}checked{% endif %}> Ganze Familie</label>
+      {% for k in kids %}
+      <label class="check"><input type="checkbox" name="audience" value="{{ k.id }}" {% if k.id in values.audience %}checked{% endif %}> <span class="chip k{{ k.slot }}">{{ k.name }}</span></label>
+      {% endfor %}
+      <label class="check"><input type="checkbox" name="audience" value="parents" {% if 'parents' in values.audience %}checked{% endif %}> Nur Mama und Papa</label>
+      <p class="note">Kinder sehen nur Termine für die ganze Familie oder mit ihrem Namen. „Ganze Familie“ geht vor allen anderen Häkchen.</p>
+    {% else %}
+      <label class="check"><input type="radio" name="audience" value="{{ own_child_id or '' }}" {% if '*' not in values.audience %}checked{% endif %}> <span>Nur für mich <small>(Mama und Papa sehen ihn auch)</small></span></label>
+      <label class="check"><input type="radio" name="audience" value="*" {% if '*' in values.audience %}checked{% endif %}> Für die ganze Familie</label>
+    {% endif %}
+  </fieldset>
+
+  <div class="actions">
+    <button class="btn-primary" type="submit">Speichern</button>
+    <a class="btn-link" href="/kalender{% if values.date %}?von={{ values.date }}{% endif %}">Abbrechen</a>
+  </div>
+  {% if event %}<p class="note">Eingetragen von {{ event.created_by_name or 'unbekannt' }}.</p>{% endif %}
+</form>
+
+{% if event %}
+<form class="card evform danger" method="post" action="/kalender/{{ event.id }}/loeschen">
+  <label class="check"><input type="checkbox" name="confirm" value="ja" required> Ja, diesen Termin löschen</label>
+  <div class="actions"><button class="btn-danger" type="submit">Termin löschen</button></div>
+</form>
+{% endif %}
+
+</div>
+{% endblock %}

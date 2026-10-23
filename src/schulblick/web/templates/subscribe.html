@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Kalender-Abo · Schulblick{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+
+<header class="top">
+  <div>
+    <p class="meta"><a href="/kalender">‹ zurück zum Kalender</a></p>
+    <h1>Kalender-Abo</h1>
+  </div>
+</header>
+
+{% if rotated %}<div class="alert ok" role="status">Neuer Link erzeugt. Der alte Link funktioniert nicht mehr.</div>{% endif %}
+
+<section class="card sub">
+  <p>Mit diesem Link zeigt der Kalender auf deinem Handy alle Termine, die du hier im Schulblick siehst:
+  Familientermine, Klassenarbeiten, Ferien, Schultermine und Vertretungen. Er aktualisiert sich von selbst,
+  meist stündlich (Google: bis zu einmal am Tag).</p>
+
+  <label for="icsurl">Dein persönlicher Link
+    <input id="icsurl" class="mono" value="{{ https_url }}" readonly>
+  </label>
+  <div class="actions">
+    <button class="btn-link" type="button" data-copy="icsurl">Link kopieren</button>
+    <a class="btn-primary" href="{{ webcal_url }}">Im Kalender öffnen</a>
+  </div>
+  <p class="note">Behandle den Link wie ein Passwort: Wer ihn kennt, sieht deine Termine.</p>
+</section>
+
+<section class="card sub">
+  <h2>So geht's</h2>
+  <ul class="howto">
+    <li><b>iPhone:</b> „Im Kalender öffnen“ antippen und „Abonnieren“ bestätigen. Oder: Einstellungen → Kalender → Accounts → Account hinzufügen → Andere → Kalenderabo hinzufügen → Link einfügen.</li>
+    <li><b>Android / Google Kalender:</b> Am Rechner calendar.google.com öffnen → links „Weitere Kalender“ → „Per URL“ → Link einfügen. Danach erscheint er auch auf dem Handy.</li>
+    <li><b>Outlook:</b> Kalender → Kalender hinzufügen → Aus dem Internet abonnieren → Link einfügen.</li>
+  </ul>
+</section>
+
+<form class="card sub" method="post" action="/kalender/abo/neu">
+  <h2>Link ersetzen</h2>
+  <p class="note">Falls der Link in falsche Hände geraten ist: Ein neuer Link macht den alten sofort ungültig. Danach musst du das Abo auf deinen Geräten neu einrichten.</p>
+  <div class="actions"><button class="btn-link" type="submit">Neuen Link erzeugen</button></div>
+</form>
+
+</div>
+<script src="/static/app.js?v={{ version }}"></script>
+{% endblock %}

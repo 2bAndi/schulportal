@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% set multi = a.kids|length > 1 %}
+{% macro chips(item) -%}
+  <span class="chips">
+  {%- if item.parents_only %}<span class="chip all">Eltern</span>
+  {%- elif item.everyone %}{% if multi %}<span class="chip all">alle</span>{% endif %}
+  {%- elif multi %}{% for i in item.child_ids %}{% set k = a.kid_by_id.get(i) %}{% if k %}<span class="chip k{{ k.slot }}">{{ k.name }}</span>{% endif %}{% endfor %}
+  {%- endif -%}
+  </span>
+{%- endmacro %}
+{% macro tone(item) -%}
+  {%- if item.child_ids|length == 1 and a.kid_by_id.get(item.child_ids[0]) and not item.everyone -%}k{{ a.kid_by_id[item.child_ids[0]].slot }}
+  {%- elif item.parents_only -%}par{%- else -%}all{%- endif -%}
+{%- endmacro %}
+{% block title %}Kalender · Schulblick{% endblock %}
+{% block body %}
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <p class="meta">{{ a.title }}</p>
+    <h1>Kalender</h1>
+  </div>
+  <div class="who">
+    <form method="post" action="/logout"><button class="btn-link" type="submit">{{ user.display_name }} abmelden</button></form>
+  </div>
+</header>
+
+{% include "_tabs.html" %}
+
+{% if saved == '1' %}<div class="alert ok" role="status">Termin gespeichert.</div>{% elif saved == '2' %}<div class="alert ok" role="status">Termin gelöscht.</div>{% endif %}
+
+<div class="caltools">
+  <div class="pager">
+    <a class="btn-link" href="/kalender?von={{ a.prev }}" aria-label="Vier Wochen zurück">‹ Früher</a>
+    <a class="btn-link" href="/kalender">Heute</a>
+    <a class="btn-link" href="/kalender?von={{ a.next }}" aria-label="Vier Wochen weiter">Später ›</a>
+  </div>
+  <div class="pager">
+    <a class="btn-link" href="/kalender/abo">Kalender-Abo</a>
+    <a class="btn-primary" href="/kalender/neu">+ Neuer Termin</a>
+  </div>
+</div>
+
+<p class="legend note">
+  <span class="sw fam"></span> Familientermin
+  <span class="sw sch"></span> Schule (nur lesen)
+  {% if not user.is_parent %}· Du siehst deine Termine und die für die ganze Familie.{% endif %}
+</p>
+
+<ol class="agenda card">
+  {% for d in a.days %}
+  {% if d.monday or loop.first %}
+  <li class="weekrow">KW {{ d.day.isocalendar()[1] }}{% if d.week %} · {{ d.week }}-Woche{% endif %}</li>
+  {% endif %}
+  <li class="aday {{ 'today' if d.is_today }} {{ 'we' if d.is_weekend }} {{ 'empty' if not d['items'] }}">
+    <a class="dlabel" href="/kalender/neu?datum={{ d.day.isoformat() }}" title="Termin am {{ d.label }} eintragen">
+      <span class="wd">{{ d.weekday }}</span><span class="dm">{{ d.label }}</span>
+    </a>
+    <div class="aitems">
+      {% for it in d['items'] %}
+      <div class="aitem {{ 'fam' if it.kind == 'family' else 'sch' }} {{ tone(it) }}">
+        <div class="aline">
+          {% if it.time %}<span class="t">{{ it.time }}</span>{% endif %}
+          <strong>{% if it.kind == 'exam' %}<span class="tag crit">Arbeit</span> {% elif it.kind == 'test' %}<span class="tag warn">Lernkontrolle</span> {% elif it.kind == 'plan' %}<span class="tag warn">Vertretung</span> {% elif it.kind == 'holiday' %}<span class="tag ok">frei</span> {% endif %}{{ it.title }}</strong>
+          {{ chips(it) }}
+          {% if it.edit_url %}<a class="edit" href="{{ it.edit_url }}">Bearbeiten</a>{% endif %}
+        </div>
+        {% if it.note or it.detail or (it.kind == 'family' and it.by) %}
+        <p class="note">{{ it.note }}{% if it.note and it.detail %} · {% endif %}{{ it.detail }}{% if it.kind == 'family' and it.by %}{% if it.note or it.detail %} · {% endif %}von {{ it.by }}{% endif %}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+
+<div class="caltools">
+  <div class="pager">
+    <a class="btn-link" href="/kalender?von={{ a.prev }}">‹ Früher</a>
+    <a class="btn-link" href="/kalender?von={{ a.next }}">Später ›</a>
+  </div>
+</div>
+
+<footer>Schulblick {{ version }} · Tipp: Auf ein Datum tippen, um dort einen Termin einzutragen.</footer>
+</div>
+{% endblock %}

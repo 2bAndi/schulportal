@@ -24,6 +24,7 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 - [Funktionen](#funktionen)
 - [So funktioniert es](#so-funktioniert-es)
 - [Wer sieht was](#wer-sieht-was)
+- [Familienkalender](#familienkalender)
 - [Aufbau des Projekts](#aufbau-des-projekts)
 - [Konfiguration](#konfiguration)
 - [Installation auf dem Server](#installation-auf-dem-server)
@@ -47,6 +48,7 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 | **Stundenplan** | *Stundenplan* | Klassenplan; Religion bzw. Ethik wird aus den Kursen des Kindes erkannt |
 | **Neu seit dem letzten Besuch** | alle Bereiche | Neue oder geänderte Einträge sind mit *neu* markiert |
 | **Abrufstatus** | – | Eltern sehen, wann jeder Bereich zuletzt abgerufen wurde und ob Fehler auftraten |
+| **Familienkalender** | eigene Einträge + Schule | Gemeinsamer Kalender mit Rechten pro Person und ICS-Abo fürs Handy, siehe [unten](#familienkalender) |
 
 Die Oberfläche funktioniert auf dem Handy und lässt sich zum Startbildschirm hinzufügen. Sie hat einen hellen und
 einen dunklen Modus und lädt keine externen Schriften oder Skripte.
@@ -97,6 +99,36 @@ Jeder Eintrag trägt die Liste der Kinder, die er betrifft. Die Regeln stehen in
 Die Rechte werden beim Zusammenstellen der Übersicht geprüft (`OverviewBuilder`), nicht erst in den Vorlagen.
 Tests stellen sicher, dass kein Kind die Daten eines Geschwisters sieht.
 
+## Familienkalender
+
+Unter **Kalender** führt die Familie einen gemeinsamen Kalender. Er zeigt vier Wochen am Stück, Woche für Woche
+mit A-/B-Woche, und mischt eigene Einträge mit den Schulterminen.
+
+<p align="center">
+  <img src="docs/calendar-parent.png" alt="Familienkalender in der Elternansicht (Testdaten)" width="70%">
+</p>
+
+* **Eintragen dürfen alle.** Ohne Uhrzeit ist ein Termin ganztägig; mit „bis Datum“ geht er über mehrere Tage.
+  Ein Tipp auf ein Datum öffnet das Formular für diesen Tag.
+* **Für wen?** Eltern wählen „Ganze Familie“, einzelne Kinder oder „Nur Mama und Papa“. Kinder wählen
+  „Nur für mich“ oder „Für die ganze Familie“; für Geschwister können sie nichts eintragen.
+* **Wer sieht was?** Eltern sehen alles. Kinder sehen ihre eigenen Einträge, Einträge mit ihrem Namen und die für
+  die ganze Familie.
+* **Wer darf ändern?** Kinder bearbeiten und löschen nur, was sie selbst angelegt haben; Eltern alles. Löschen
+  verlangt ein zusätzliches Häkchen.
+* **Schultermine** (Arbeiten, Lernkontrollen, Ferien, Schulveranstaltungen, Vertretungen) erscheinen gestrichelt
+  und nur zum Lesen, mit denselben Sichtbarkeitsregeln wie in der Übersicht.
+* **Die nächsten Tage** in der Übersicht enthalten auch die Familientermine; neue Einträge anderer erscheinen unter
+  „Neu seit deinem letzten Besuch“.
+* **Kalender-Abo:** Jede Person hat unter *Kalender → Kalender-Abo* einen eigenen Link (`/ics/<token>.ics`) für
+  iPhone, Google oder Outlook. Er enthält genau das, was die Person im Schulblick sieht, und lässt sich jederzeit
+  durch einen neuen ersetzen. Der Link funktioniert ohne Anmeldung und ist deshalb wie ein Passwort zu behandeln.
+
+Gespeichert wird in der Tabelle `family_events` (`audience` ist eine Liste von Kinder-IDs, `["*"]` für alle oder
+`["parents"]`). Rechte und Prüfung des Formulars stehen in
+[`src/schulblick/web/family.py`](src/schulblick/web/family.py), Kalenderansicht und ICS in
+[`src/schulblick/web/calendar.py`](src/schulblick/web/calendar.py).
+
 ## Aufbau des Projekts
 
 ```
@@ -123,8 +155,10 @@ Tests stellen sicher, dass kein Kind die Daten eines Geschwisters sieht.
 │   │   ├── app.py              # FastAPI-App, Sicherheits-Header, Herkunftsprüfung
 │   │   ├── auth.py             # Passwörter (argon2), Sitzungen, Bremse bei Fehlversuchen, optional TOTP
 │   │   ├── views.py            # stellt die Übersicht für eine Person zusammen
+│   │   ├── family.py           # Familienkalender: Speichern, Sichtbarkeit, Rechte, Formularprüfung
+│   │   ├── calendar.py         # Kalenderansicht und ICS-Abo
 │   │   ├── templates/          # Jinja2-Vorlagen
-│   │   └── static/             # CSS, Icons, Web-Manifest
+│   │   └── static/             # CSS, Icons, Web-Manifest, kleines JS (Link kopieren)
 │   ├── cli.py                  # Verwaltungsbefehle (Passwörter, Abruf, Anmeldetest)
 │   ├── config.py
 │   ├── db.py                   # SQLite-Schema und Hilfsfunktionen
@@ -206,7 +240,7 @@ roten Hinweis.
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e .[dev]
-pytest                                   # Parser, Zuordnung, Verschlüsselung, Anmeldung, Zugriffsrechte
+pytest                                   # Parser, Zuordnung, Verschlüsselung, Anmeldung, Zugriffsrechte, Kalender
 
 # lokale Vorschau mit anonymisierten Testdaten, ohne Zugriff auf das Portal
 export SCHULBLICK_CONFIG=tests/fixtures/family_test.toml SCHULBLICK_DB=/tmp/sb.db SCHULBLICK_COOKIE_SECURE=false
@@ -231,6 +265,7 @@ anonymisiert als Testdatei, passt den Parser an und ergänzt einen Test.
   Herkunftsprüfung bei jedem POST.
 * Datensparsamkeit: Nachrichten bleiben 30 Tage, nicht mehr aktive Hausaufgaben 60 Tage, Vertretungen 7 Tage; von
   der Anwesenheit nur die aktuellen Summen. Die nächtlichen Sicherungen werden 7 Tage im Datenvolume aufbewahrt.
+* Kalender-Abo-Links sind zufällige Tokens pro Person; ein neuer Link macht den alten sofort ungültig.
 * `config/family.toml` enthält Vornamen und die Schule. Das Repository muss deshalb privat bleiben.
 
 ## Bekannte Grenzen
@@ -245,17 +280,9 @@ anonymisiert als Testdatei, passt den Parser an und ergänzt einen Test.
 
 ## Ausblick
 
-**Familienkalender** (als Nächstes): ein gemeinsamer Kalender in derselben App.
-
-* Tabelle `family_events(id, title, start, end, all_day, location, note, audience, created_by, updated_at)`;
-  `audience` ist eine Liste von Kinder-IDs, `["*"]` für alle oder `["parents"]`.
-* Alle können Einträge anlegen. Kinder sehen ihre eigenen und die für die ganze Familie, Eltern sehen alles.
-  Kinder bearbeiten nur, was sie selbst angelegt haben; Eltern bearbeiten alles.
-* Schultermine (Arbeiten, Ferien, Vertretungen) erscheinen dort nur zum Lesen.
-* Ein ICS-Abo pro Person (`/ics/<token>.ics`) für den Kalender auf dem Handy.
-
-Später denkbar: Push-Benachrichtigung bei Unterrichtsausfall am nächsten Tag oder neuen Nachrichten, eine
-Morgenübersicht.
+* Wiederkehrende Familientermine (z. B. wöchentliches Training)
+* Push-Benachrichtigung bei Unterrichtsausfall am nächsten Tag oder neuen Nachrichten
+* Morgenübersicht per Nachricht
 
 ## Dank
 
