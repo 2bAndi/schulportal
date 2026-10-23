@@ -96,7 +96,7 @@ class Overview:
     timetables: list[dict] = field(default_factory=list)
     status: list[dict] = field(default_factory=list)
     todos: list[dict] = field(default_factory=list)
-    digest: str | None = None
+    digest: dict | None = None
     ai_status: dict | None = None
     portal_block: str | None = None
     last_sync: str | None = None
@@ -170,7 +170,7 @@ class OverviewBuilder:
         ov.timetables = self._timetables(kids)
         ov.days = self._upcoming(ov)
         ov.new_items = self._new_items(ov)
-        ov.digest = self._digest()
+        ov.digest = self._digest(kids)
         if self.user.is_parent:
             ov.status = self._status()
             ov.ai_status = self._ai_status()
@@ -335,10 +335,25 @@ class OverviewBuilder:
                 out.append({**item, "child_ids": child_ids, "message_id": r["id"], "subject": r["subject"]})
         return out
 
-    def _digest(self) -> str | None:
+    def _digest(self, kids: list[Kid] | None = None) -> dict | None:
+        """{headline, sections:[{name, slot, items}]} or {headline, text} for older plain-text summaries."""
         row = self.conn.execute("SELECT text FROM daily_digests WHERE user_id=? AND day=?",
                                 (self.user.id, self.today.isoformat())).fetchone()
-        return row["text"] if row else None
+        if not row:
+            return None
+        data = db.loads(row["text"], None) if row["text"].lstrip().startswith("{") else None
+        if not isinstance(data, dict):
+            return {"headline": "", "sections": [], "text": row["text"]}
+        by_name = {}
+        for k in kids or []:
+            by_name[k.name.lower()] = k
+            by_name[k.first_name.lower()] = k
+        sections = []
+        for sec in data.get("sections") or []:
+            k = by_name.get(str(sec.get("name", "")).lower())
+            sections.append({"name": k.name if k else sec.get("name", ""), "slot": k.slot if k else None,
+                             "items": sec.get("items") or []})
+        return {"headline": data.get("headline", ""), "sections": sections, "text": ""}
 
     def _ai_status(self) -> dict | None:
         start = datetime.combine(self.today, datetime.min.time(), self.s.tz).astimezone(timezone.utc)

@@ -63,22 +63,73 @@ MESSAGE_TOOL = {
 }
 
 SYSTEM_DIGEST = """Du schreibst die Morgenübersicht für eine Familie aus den Daten des Schulportals.
-Schreibe auf Deutsch, freundlich und knapp. Nur Fakten aus den Daten, nichts erfinden, keine Ratschläge.
-Für Eltern: pro Kind ein kurzer Absatz, der mit dem Namen beginnt („Ben: …“), danach höchstens ein Satz zu
-Familienterminen. Für ein Kind: ein Absatz in der Du-Form. Wichtiges zuerst: Ausfall/Vertretung heute oder morgen,
-Arbeiten in den nächsten Tagen, Fristen, offene Hausaufgaben. Ist nichts los, schreibe das in einem Satz.
-Keine Überschriften, keine Aufzählungszeichen, höchstens 90 Wörter pro Kind."""
+Ergebnis über das Werkzeug `record_digest`, auf Deutsch, nur Fakten aus den Daten, nichts erfinden, keine Ratschläge.
 
+- headline: ein kurzer Satz, das Wichtigste des Tages (z. B. „Ben schreibt Dienstag Französisch, sonst ruhig.“).
+- sections: ein Abschnitt pro Kind (Name genau wie in den Daten), dann ggf. „Alle“ (betrifft alle Kinder) und
+  „Familie“ (Familientermine). Abschnitte ohne Punkte weglassen.
+- items: Stichpunkte, je höchstens 12 Wörter, höchstens 5 pro Abschnitt, Wichtiges zuerst:
+  Ausfall/Vertretung heute oder morgen, Arbeiten, Fristen und Aufgaben, dann Hausaufgaben.
+  Offene Hausaufgaben NICHT einzeln mit Seitenzahlen aufzählen, sondern als EIN Punkt mit Fächerliste,
+  z. B. „Hausaufgaben offen: Bio, Deutsch (bis Di), Englisch, Mathe“.
+  when: Termin oder Frist kurz („Di 27.10.“, „heute 12:00“), sonst leer. Übernimm Datum und Fach genau aus
+  derselben Datenzeile, kombiniere nie Angaben aus verschiedenen Zeilen.
+  kind: ausfall, arbeit, frist, hausaufgabe, termin oder info.
+- Reine Hinweise ohne Handlung (Beratungsangebote, Kontaktdaten, Telefonnummern) weglassen.
+- Für ein Kind (Für: Kind …) in der Du-Form und nur sein Abschnitt plus „Familie“; für Eltern sachlich."""
+
+DIGEST_KINDS = ("ausfall", "arbeit", "frist", "hausaufgabe", "termin", "info")
 
 DIGEST_TOOL = {
     "name": "record_digest",
-    "description": "Speichert die Morgenübersicht.",
+    "description": "Speichert die Morgenübersicht als Stichpunkte pro Kind.",
     "input_schema": {
         "type": "object",
-        "properties": {"text": {"type": "string", "description": "Die Morgenübersicht als fertiger Text"}},
-        "required": ["text"],
+        "properties": {
+            "headline": {"type": "string"},
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Name des Kindes, „Alle“ oder „Familie“"},
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "text": {"type": "string"},
+                                    "when": {"type": "string"},
+                                    "kind": {"type": "string", "enum": list(DIGEST_KINDS)},
+                                },
+                                "required": ["text", "when", "kind"],
+                            },
+                        },
+                    },
+                    "required": ["name", "items"],
+                },
+            },
+        },
+        "required": ["headline", "sections"],
     },
 }
+
+
+def normalise_digest(data: dict) -> dict:
+    sections = []
+    for sec in (data.get("sections") or [])[:8]:
+        if not isinstance(sec, dict):
+            continue
+        items = []
+        for it in (sec.get("items") or [])[:6]:
+            if not isinstance(it, dict) or not str(it.get("text") or "").strip():
+                continue
+            kind = it.get("kind") if it.get("kind") in DIGEST_KINDS else "info"
+            items.append({"text": str(it["text"]).strip()[:160], "when": str(it.get("when") or "").strip()[:30],
+                          "kind": kind})
+        if items:
+            sections.append({"name": str(sec.get("name") or "").strip()[:40], "items": items})
+    return {"headline": str(data.get("headline") or "").strip()[:240], "sections": sections}
 
 
 @dataclass
@@ -186,21 +237,17 @@ class AIClient:
     # -- morning summary -------------------------------------------------------------------
 
     def digest(self, audience: str, facts: str) -> str:
-        # forced tool call, like for messages: a plain text answer came back empty on the server
+        """Returns the summary as JSON ({headline, sections:[{name, items:[{text, when, kind}]}]})."""
         resp = self._create("digest", self.s.ai.digest_model, max_tokens=1500, system=SYSTEM_DIGEST,
                             tools=[DIGEST_TOOL], tool_choice={"type": "tool", "name": "record_digest"},
                             messages=[{"role": "user", "content": f"Für: {audience}\n\nDaten:\n{facts}"}])
-        text = ""
-        for b in resp.content:
-            kind = getattr(b, "type", "")
-            if kind == "tool_use" and isinstance(getattr(b, "input", None), dict):
-                text = str(b.input.get("text") or "").strip() or text
-            elif kind == "text" and not text:
-                text = (getattr(b, "text", "") or "").strip()
-        if not text:
+        data = next((b.input for b in resp.content
+                     if getattr(b, "type", "") == "tool_use" and isinstance(getattr(b, "input", None), dict)), None)
+        digest = normalise_digest(data) if data else None
+        if not digest or not (digest["headline"] or digest["sections"]):
             kinds = ",".join(getattr(b, "type", "?") for b in resp.content) or "keine"
             raise AIUnavailable(f"leere Antwort (stop_reason={getattr(resp, 'stop_reason', '?')}, Blöcke={kinds})")
-        return text[:2500]
+        return db.dumps(digest)
 
 
 # --------------------------------------------------------------------------- message pipeline
@@ -313,26 +360,31 @@ def _facts_for(conn: sqlite3.Connection, settings: Settings, user, today: date) 
                 continue
             for r in d["rows"]:
                 if k.id in r["child_ids"]:
-                    lines.append(f"- Vertretungsplan {d['label']}: {r['hours']}. Std. {r['subject_long'] or r['subject']} "
-                                 f"{r['kind']}" + (f", Raum {r['room']}" if r["room"] else "")
+                    lines.append(f"- Vertretungsplan | {d['label']} | {r['hours']}. Std. | {r['subject_long'] or r['subject']} "
+                                 f"| {r['kind']}" + (f", Raum {r['room']}" if r["room"] else "")
                                  + (" (falls belegt)" if r["maybe"] else ""))
         for e in ov.exams:
             if e["first_day"] <= horizon and (k.id in e["child_ids"] or e["everyone"]):
-                lines.append(f"- {('Arbeit' if e['kind'] == 'exam' else 'Lernkontrolle')}: {e['course'] or e['title']}"
-                             f" am {fmt_short(e['first_day'])}")
+                lines.append(f"- {('Arbeit' if e['kind'] == 'exam' else 'Lernkontrolle')} | Fach: {e['course'] or e['title']}"
+                             f" | am {fmt_short(e['first_day'])}")
         open_hw = [h for h in ov.homework if h["child_id"] == k.id and not h["done"] and not h["stale"]]
-        for h in open_hw[:6]:
-            lines.append(f"- Offene Hausaufgabe {h['course']} (vom {h['date_label']}): {h['text'][:140]}")
+        for h in open_hw[:8]:
+            lines.append(f"- Offene Hausaufgabe | Fach: {h['course']} | aufgegeben {h['date_label']} | {h['text'][:100]}")
         for t in ov.todos:
-            if (not t["child_ids"] or k.id in t["child_ids"]) and (t["due"] is None or t["due"] <= horizon):
-                lines.append(f"- Aufgabe aus Nachricht: {t['text']}" + (f" bis {fmt_short(t['due'])}" if t["due"] else ""))
+            if k.id in t["child_ids"] and (t["due"] is None or t["due"] <= horizon):
+                lines.append(f"- Aufgabe aus Nachricht: {t['text']}" + (f" | bis {fmt_short(t['due'])}" if t["due"] else ""))
         if settings.ai.include_attendance:
             for a in ov.attendance:
                 if a["child_id"] == k.id:
                     lines.append(f"- Anwesenheit: {a['missing']} Stunden fehlend, {a['open_excuses']} offene Entschuldigungen")
+    shared = [t for t in ov.todos if not t["child_ids"] and (t["due"] is None or t["due"] <= horizon)]
+    if shared:
+        lines.append("\n## Alle")
+        for t in shared:
+            lines.append(f"- Aufgabe aus Nachricht: {t['text']}" + (f" | bis {fmt_short(t['due'])}" if t["due"] else ""))
     fam = [ev for ev in ov.family if ev.first_day <= today + timedelta(days=1)]
     if fam:
-        lines.append("\n## Familientermine heute/morgen")
+        lines.append("\n## Familie (Termine heute/morgen)")
         for ev in fam:
             lines.append(f"- {fmt_short(ev.first_day)} {ev.time_label} {ev.title}".replace("  ", " "))
     for e in ov.events:

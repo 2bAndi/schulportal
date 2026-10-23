@@ -39,8 +39,14 @@ def tool_answer(data):
                usage=Obj(input_tokens=400, output_tokens=120))
 
 
-def text_answer(text):
-    return Obj(content=[Obj(type="tool_use", name="record_digest", input={"text": text})],
+def text_answer(headline):
+    data = {"headline": headline, "sections": [
+        {"name": "Paul", "items": [{"text": "Arbeit Mathe", "when": "Di 27.10.", "kind": "arbeit"},
+                                   {"text": "Hausaufgaben offen: Bio, Deutsch", "when": "", "kind": "hausaufgabe"},
+                                   {"text": "", "when": "", "kind": "info"}]},
+        {"name": "Familie", "items": [{"text": "Cheerleading", "when": "heute 12:00", "kind": "quatsch"}]},
+        {"name": "Leer", "items": []}]}
+    return Obj(content=[Obj(type="tool_use", name="record_digest", input=data)],
                usage=Obj(input_tokens=600, output_tokens=90))
 
 
@@ -183,7 +189,10 @@ def test_morning_summary_without_attendance(env):
     ai.build_digests(conn, settings, client, today=now.date())
     assert len(sdk.calls) == 3
     ov = OverviewBuilder(conn, settings, user(conn, "paul"), since=None, now=now).build()
-    assert ov.digest == "Paul: heute nichts Besonderes."
+    assert ov.digest["headline"] == "Paul: heute nichts Besonderes."
+    paul_sec, fam_sec = ov.digest["sections"]
+    assert paul_sec["slot"] == 2 and len(paul_sec["items"]) == 2  # empty item dropped
+    assert fam_sec["slot"] is None and fam_sec["items"][0]["kind"] == "info"  # unknown kind normalised
 
 
 def test_overview_page_shows_ai_parts(env):
@@ -198,7 +207,8 @@ def test_overview_page_shows_ai_parts(env):
     c = TestClient(create_app(settings), base_url="http://testserver")
     c.post("/login", data={"username": "papa", "password": "papa-passwort"}, headers={"origin": "http://testserver"})
     html = c.get("/").text
-    assert "Guten Morgen." in html and "Die Robotik-AG fährt am Freitag ins Museum." in html
+    assert '<details id="morgen" class="digest card">' in html  # collapsed until clicked
+    assert "Guten Morgen." in html and "Arbeit Mathe" in html and "Die Robotik-AG fährt am Freitag ins Museum." in html
     assert "Originaltext anzeigen" in html and "KI-Zusammenfassung" in html and 'class="ev todo' in html
 
 
@@ -209,4 +219,14 @@ def test_empty_digest_reports_why(env):
     with pytest.raises(ai.AIUnavailable, match="max_tokens.*thinking"):
         ai.AIClient(settings, conn, client=empty).digest("Eltern", "nichts")
     plain = FakeSDK(lambda kw: Obj(content=[Obj(type="text", text="Alles ruhig.")], usage=None))
-    assert ai.AIClient(settings, conn, client=plain).digest("Eltern", "nichts") == "Alles ruhig."
+    with pytest.raises(ai.AIUnavailable):
+        ai.AIClient(settings, conn, client=plain).digest("Eltern", "nichts")
+
+
+def test_old_plain_text_digest_still_renders(env):
+    settings, conn, now = env
+    papa = user(conn, "papa")
+    conn.execute("INSERT INTO daily_digests(user_id, day, text, model, created_at) VALUES(?,?,?,?,?)",
+                 (papa.id, now.date().isoformat(), "Ben: alles ruhig.", "m", db.utcnow()))
+    ov = OverviewBuilder(conn, settings, papa, since=None, now=now).build()
+    assert ov.digest == {"headline": "", "sections": [], "text": "Ben: alles ruhig."}

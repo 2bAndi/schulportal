@@ -35,11 +35,27 @@
 <div class="alert warn">Noch keine Daten. Der erste Abruf aus dem Schulportal läuft gleich nach dem Start des Abrufdienstes.</div>
 {% endif %}
 
-{% if ov.digest %}
-<section id="morgen" class="digest card" aria-label="Morgenübersicht">
-  <p class="label">Heute früh · Kurzüberblick</p>
-  <div class="text">{{ ov.digest }}</div>
-</section>
+{% if ov.digest %}{% set dg = ov.digest %}
+<details id="morgen" class="digest card">
+  <summary>
+    <span class="label">Heute früh · Kurzüberblick</span>
+    {% if dg.headline %}<span class="headline">{{ dg.headline }}</span>{% endif %}
+    <span class="toggle">anzeigen</span>
+  </summary>
+  <div class="dg-body">
+  {% if dg.text %}<p class="dg-text">{{ dg.text }}</p>{% endif %}
+  {% for sec in dg.sections %}
+    <div class="dg-sec">
+      <h3>{% if sec.slot %}<span class="chip k{{ sec.slot }}">{{ sec.name }}</span>{% else %}<span class="chip all">{{ sec.name }}</span>{% endif %}</h3>
+      <ul>
+      {% for it in sec['items'] %}
+        <li class="dg-{{ it.kind }}">{% if it.when %}<span class="when">{{ it.when }}</span>{% endif %}<span>{{ it.text }}</span></li>
+      {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+  </div>
+</details>
 {% endif %}
 
 <nav class="jump" aria-label="Bereiche">
