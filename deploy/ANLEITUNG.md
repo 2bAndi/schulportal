@@ -82,6 +82,8 @@ Android: Browser-Menü). Danach startet Schulblick wie eine App.
 2. `sudo bash deploy/ki-schluessel.sh` – Schlüssel einfügen (die Eingabe bleibt unsichtbar). Das Skript startet den
    worker neu und zeigt den KI-Status.
 3. Testen: `docker compose exec worker schulblick ai-run` und `docker compose exec worker schulblick ai-digest --neu`.
+   Die Morgenübersicht erscheint danach oben in der App als zugeklappte Karte „Heute früh“; ein Klick zeigt die
+   Stichpunkte pro Kind.
 
 Ohne Schlüssel bleibt `secrets/anthropic_key` leer und Schulblick läuft wie bisher. Ausschalten:
 `sudo bash deploy/ki-schluessel.sh --aus`. Anwesenheitsdaten gehen nie an die KI.

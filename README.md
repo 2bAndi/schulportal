@@ -163,10 +163,20 @@ API nicht antwortet, zeigt Schulblick einfach wie bisher die Originaltexte. Die 
 | **Kurzfassung** | einmal pro neuer oder geänderter Nachricht, direkt nach dem Abruf | 2–3 Sätze unter dem Betreff; der Originaltext bleibt aufklappbar |
 | **Aufgaben und Fristen** | im selben Aufruf | Abschnitt „☐ Unterschrift … bis Di 27.10.“ an der Nachricht; Aufgaben mit Datum zusätzlich als *Aufgabe* in „Die nächsten Tage“ |
 | **Zuordnung als Rückfall** | nur wenn die Regeln in `assign.py` kein Kind finden | Die Nachricht bekommt die Kinder, die die KI aus Empfängern und Text erkennt. Kinder sehen sie nur, wenn sie an Lernende ging. |
-| **Morgenübersicht** | täglich um `digest_time` (06:15), nach einem frischen Abruf | Karte „Heute früh“ oben: für Eltern ein Absatz pro Kind, für Kinder einer in der Du-Form |
+| **Morgenübersicht** | täglich um `digest_time` (06:15), nach einem frischen Abruf | Karte „Heute früh“ oben, eingeklappt mit einem Satz zum Wichtigsten; per Klick Stichpunkte pro Kind, „Alle“ und „Familie“ (siehe unten) |
 
-**Technik.** Modell `claude-haiku-5-5` mit erzwungenem Werkzeugaufruf (`record_message`), damit die Antwort immer
-gültiges JSON ist. Ergebnisse liegen in SQLite (`message_ai`, `daily_digests`); jede Nachricht wird nur einmal
+**Morgenübersicht im Detail.** Die Karte ist beim Aufruf zugeklappt und zeigt nur die Kopfzeile. Aufgeklappt
+steht jedes Kind in seiner Farbe, danach „Alle“ (betrifft alle Kinder) und „Familie“ (Termine heute und morgen).
+Jeder Stichpunkt hat links Datum oder Uhrzeit, rechts höchstens zwölf Wörter; der Rand zeigt die Art (rot Arbeit,
+gelb Ausfall/Vertretung, grün Frist oder Termin, grau Hausaufgaben und Sonstiges). Offene Hausaufgaben erscheinen als
+ein Punkt mit Fächerliste, reine Hinweise ohne Handlung (Beratungsangebote, Kontaktdaten) fallen weg. Eltern sehen
+alle Kinder, ein Kind nur sich selbst und die Familie, in der Du-Form. Gespeichert wird JSON
+(`{headline, sections: [{name, items: [{text, when, kind}]}]}`); ältere Übersichten als Fließtext werden weiter angezeigt.
+
+**Technik.** Modell `claude-haiku-5-5` mit erzwungenem Werkzeugaufruf (`record_message` für Nachrichten,
+`record_digest` für die Morgenübersicht), damit die Antwort immer gültiges JSON ist. Die Daten für die
+Morgenübersicht gehen zeilenweise mit Fach und Datum an die KI, damit sie keine Angaben aus verschiedenen Einträgen
+vermischt. Ergebnisse liegen in SQLite (`message_ai`, `daily_digests`); jede Nachricht wird nur einmal
 geschickt, außer ihr Text ändert sich. Nach drei Fehlversuchen gibt der worker eine Nachricht auf. Jeder Aufruf
 landet mit Tokenzahl in `ai_usage`; die Eltern sehen im Abrufstatus die Aufrufe des Tages und den letzten Fehler.
 `max_calls_per_day` ist eine zweite Bremse neben dem Ausgabenlimit in der Console. Code:
@@ -303,7 +313,7 @@ Alle Befehle im Ordner `/opt/schulblick` und mit `sudo` ausführen.
 | Letzte Abrufe | `docker compose exec worker sqlite3 -column /data/schulblick.db "SELECT area, ok, message, finished_at FROM sync_runs ORDER BY id DESC LIMIT 6"` |
 | KI-Status (Schlüssel, Aufrufe, Fehler) | `docker compose exec worker schulblick ai-status` |
 | Nachrichten sofort zusammenfassen | `docker compose exec worker schulblick ai-run` |
-| Morgenübersicht jetzt schreiben | `docker compose exec worker schulblick ai-digest --neu` |
+| Morgenübersicht jetzt schreiben | `docker compose exec worker schulblick ai-digest --neu` (Ausgabe als JSON) |
 | Verbundene Kalender sofort abrufen | im Browser: *Kalender → Outlook-Import → Jetzt abrufen* |
 | Portal-Passwort geändert | `secrets/sph_credentials` anpassen, dann `docker compose restart worker` |
 
