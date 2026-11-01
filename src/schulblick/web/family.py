@@ -28,11 +28,19 @@ MAX_OCCURRENCES = 2000  # safety net per expansion
 
 
 def child_id_for(conn: sqlite3.Connection, user: User) -> str | None:
-    """Portal pupil id of a child account, None for parents or unknown children."""
-    if user.is_parent or not user.child_first_name:
+    """Portal pupil id of a child account, None for parents, tutors or unknown children."""
+    if user.role != "child" or not user.child_first_name:
         return None
     row = conn.execute("SELECT id FROM children WHERE lower(first_name)=lower(?)", (user.child_first_name,)).fetchone()
     return row["id"] if row else None
+
+
+def scope_ids(conn: sqlite3.Connection, user: User) -> set[str]:
+    """Portal pupil ids a child or tutor account is limited to (empty for parents)."""
+    names = {n.lower() for n in user.child_first_names}
+    if not names:
+        return set()
+    return {r["id"] for r in conn.execute("SELECT id, first_name FROM children") if r["first_name"].lower() in names}
 
 
 # --------------------------------------------------------------------------- model
@@ -137,14 +145,18 @@ def _row_to_event(row: sqlite3.Row, user: User) -> FamilyEvent:
 # --------------------------------------------------------------------------- rights
 
 
-def may_see(user: User, own_child_id: str | None, audience: list[str], created_by: int | None) -> bool:
+def may_see(user: User, own_ids: set[str] | str | None, audience: list[str], created_by: int | None) -> bool:
+    """Parents see everything; children and tutors see their own entries, whole-family entries and entries
+    for one of their children. Parents-only entries stay hidden from both."""
     if user.is_parent:
         return True
     if created_by is not None and created_by == user.id:
         return True
     if EVERYONE in audience:
         return True
-    return own_child_id is not None and own_child_id in audience
+    if isinstance(own_ids, str):
+        own_ids = {own_ids}
+    return bool(own_ids) and any(a in own_ids for a in audience)
 
 
 def may_edit(user: User, created_by: int | None) -> bool:
@@ -227,7 +239,7 @@ def no_school_days(conn: sqlite3.Connection, start: date, end: date) -> set[date
 
 def list_events(conn: sqlite3.Connection, user: User, start: date, end: date) -> list[FamilyEvent]:
     """Occurrences visible to `user` that overlap [start, end] (inclusive days), sorted by start."""
-    own = child_id_for(conn, user)
+    own = scope_ids(conn, user)
     rows = conn.execute(
         "SELECT * FROM family_events WHERE substr(start,1,10) <= ? AND ("
         "  (repeat = 'none' AND substr(COALESCE(end, start),1,10) >= ?)"
@@ -253,7 +265,7 @@ def get_event(conn: sqlite3.Connection, user: User, event_id: int) -> FamilyEven
     row = conn.execute("SELECT * FROM family_events WHERE id=?", (event_id,)).fetchone()
     if row is None:
         return None
-    if not may_see(user, child_id_for(conn, user), db.loads(row["audience"], []), row["created_by"]):
+    if not may_see(user, scope_ids(conn, user), db.loads(row["audience"], []), row["created_by"]):
         return None
     return _row_to_event(row, user)
 
@@ -323,13 +335,18 @@ def _time(value: str) -> time | None:
 
 
 def form_values(event: FamilyEvent | None, default_day: date | None, own_child_id: str | None,
-                is_parent: bool) -> dict:
+                is_parent: bool, tutor_ids: set[str] | None = None) -> dict:
     """Initial values for the form (new or existing event)."""
     if event is None:
+        if is_parent:
+            audience = [EVERYONE]
+        elif tutor_ids:
+            audience = sorted(tutor_ids)
+        else:
+            audience = [own_child_id] if own_child_id else [EVERYONE]
         return {"title": "", "date": (default_day or date.today()).isoformat(), "start_time": "", "end_date": "",
                 "end_time": "", "location": "", "note": "", "repeat": "none", "repeat_until": "",
-                "skip_holidays": False,
-                "audience": [EVERYONE] if is_parent else ([own_child_id] if own_child_id else [EVERYONE])}
+                "skip_holidays": False, "audience": audience}
     start, end = event.start, event.end
     return {
         "title": event.title,
@@ -411,6 +428,11 @@ def parse_form(form: dict, user: User, own_child_id: str | None, valid_child_ids
             audience = sorted({a for a in raw if a in valid_child_ids})
         if not audience:
             err("Bitte auswählen, für wen der Termin ist.")
+    elif user.is_tutor:
+        # a tutor plans for her pupils only; parents always see it, the chosen children too
+        audience = sorted({a for a in raw if a in valid_child_ids})
+        if not audience:
+            err("Bitte auswählen, für welches Kind der Termin ist.")
     else:
         audience = [EVERYONE] if EVERYONE in raw else ([own_child_id] if own_child_id else [])
         if not audience:

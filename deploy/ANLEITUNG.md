@@ -61,6 +61,7 @@ docker compose run --rm web schulblick set-password mama
 docker compose run --rm web schulblick set-password ben
 docker compose run --rm web schulblick set-password boje
 docker compose run --rm web schulblick set-password lotte
+docker compose run --rm web schulblick set-password melissa   # Nachhilfe, siehe config/family.toml
 
 # optional, nur wenn in config/family.toml require_totp_for_parents = true:
 # docker compose run --rm web schulblick totp-setup papa

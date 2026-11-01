@@ -1,6 +1,6 @@
 # Schulblick – Projektakte
 
-Stand: 1. November 2026 · Code-Stand `7720d2d` (main, mit GitHub synchron)
+Stand: 2. November 2026
 
 Diese Datei bündelt alles Wissen zum Projekt an einem Ort: Ziele, Entscheidungen, Betrieb, Verlauf und offene
 Punkte. Die technische Beschreibung steht im [README](../README.md), die Server-Einrichtung in
@@ -15,6 +15,7 @@ Schulblick ist eine private Familien-Web-App. Sie meldet sich mit dem **Elternko
 
 - **Eltern** (Papa, Mama) sehen alle drei Kinder.
 - **Kinder** (Ben G8a, Boje G5b, Carlotta „Lotte“ G5c) sehen nur ihre eigenen Einträge, im gleichen Aufbau.
+- **Nachhilfe** (Melissa) sieht nur Hausaufgaben, Arbeiten und Kalender von Boje und Lotte.
 - Dazu kommt ein gemeinsamer **Familienkalender**, in den alle eintragen können.
 
 Gestartet im Oktober 2026 mit der Frage, ob das Schulportal eine Schnittstelle hat. Es gibt keine offizielle, nur
@@ -52,7 +53,7 @@ Schulportal Hessen ──(Elternkonto, httpx)──► worker ──► SQLite �
 - **Abrufzeiten**: Schultage 06:15–16:45 alle 30 min, abends 19:00 und 21:00 vor Schultagen, Wochenende
   08:05/18:05; Kalender und Anwesenheit 05:30; Stundenpläne sonntags; Outlook-Abos stündlich.
 
-## 4. Funktionsumfang (Stand 7720d2d)
+## 4. Funktionsumfang
 
 1. **Übersicht**: „Die nächsten Tage“ (7 Tage, Farbe pro Kind), Hausaufgaben, Klassenarbeiten (10 Wochen),
    Vertretungsplan, Nachrichten der letzten 5 Tage, Anwesenheit, Stundenplan, „neu“-Markierung, Abrufstatus.
@@ -69,6 +70,11 @@ Schulportal Hessen ──(Elternkonto, httpx)──► worker ──► SQLite �
    - Morgenübersicht „Heute früh“ um 06:15: zugeklappte Karte, aufgeklappt Stichpunkte pro Kind, „Alle“ und
      „Familie“; Kinder bekommen ihre eigene Version in der Du-Form
    - Alles über erzwungene Werkzeugaufrufe (`record_message`, `record_digest`), Ergebnisse in SQLite
+5. **Nachhilfe-Konto** (`role = "tutor"`, `children = [...]`): Hausaufgaben, Arbeiten, „Die nächsten Tage“ und
+   Kalender der zugeordneten Kinder; sieht Familieneinträge dieser Kinder und für die ganze Familie, aber nichts
+   „Nur Mama und Papa“; keine Nachrichten, Vertretungen, Anwesenheit, Stundenpläne, KI-Übersicht. Kann eigene
+   Termine für ihre Kinder anlegen und nur diese ändern.
+6. **Farbe umschalten**: Knopf neben den Reitern, automatisch → hell → dunkel, pro Gerät per Cookie.
 
 ## 5. Konten
 
@@ -79,6 +85,7 @@ Schulportal Hessen ──(Elternkonto, httpx)──► worker ──► SQLite �
 | `ben` | Ben | Kind |
 | `boje` | Boje | Kind |
 | `lotte` | Carlotta | Kind |
+| `melissa` | Melissa (Nachhilfe) | Nachhilfe, nur Boje und Carlotta |
 
 Passwörter liegen nur als argon2-Hash vor und lassen sich **nicht** auslesen. Ein vergessenes Passwort wird neu
 gesetzt (siehe unten). 2FA ist für alle abgeschaltet (`require_totp_for_parents = false`).
@@ -132,6 +139,8 @@ Auf dem Server: `sudo cp -r /tmp/schulblick-neu/* /opt/schulblick/ && cd /opt/sc
 | 24.10.2026 | Anwesenheit geht nie an die KI (`include_attendance = false`) |
 | 24.10.2026 | Schlüssel nur im worker; eigener Workspace „schulblick“ mit 20 $ Limit, zusätzlich max. 150 Aufrufe/Tag |
 | 24.10.2026 | Morgenübersicht eingeklappt beim Aufruf, als Stichpunkte statt Fließtext |
+| 02.11.2026 | Hintergrund hell/dunkel umschaltbar, pro Gerät |
+| 02.11.2026 | Nachhilfe-Zugang für Melissa: Boje und Lotte; Hausaufgaben, Arbeiten, Kalender inkl. Familienterminen dieser Kinder; darf eigene Termine eintragen |
 
 ## 8. Verlauf
 

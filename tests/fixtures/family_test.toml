@@ -44,3 +44,9 @@ username = "paul"
 display_name = "Paul"
 role = "child"
 child = "Paul"
+
+[[users]]
+username = "nachhilfe"
+display_name = "Nina"
+role = "tutor"
+children = ["Paul", "Lena"]

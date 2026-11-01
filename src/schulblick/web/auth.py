@@ -39,6 +39,18 @@ class User:
     def is_parent(self) -> bool:
         return self.role == "parent"
 
+    @property
+    def is_tutor(self) -> bool:
+        """Tutor account: homework, exams and calendar of the assigned children only."""
+        return self.role == "tutor"
+
+    @property
+    def child_first_names(self) -> list[str]:
+        """Children this account is limited to (empty for parents)."""
+        if self.is_parent or not self.child_first_name:
+            return []
+        return [n.strip() for n in self.child_first_name.split(",") if n.strip()]
+
 
 def _row_to_user(row: sqlite3.Row) -> User:
     return User(
@@ -65,7 +77,7 @@ def sync_users(conn: sqlite3.Connection, settings: Settings) -> None:
                 "INSERT INTO users(username, display_name, role, child_first_name, created_at) VALUES(?,?,?,?,?) "
                 "ON CONFLICT(username) DO UPDATE SET display_name=excluded.display_name, role=excluded.role, "
                 "child_first_name=excluded.child_first_name",
-                (u.username, u.display_name, u.role, u.child, db.utcnow()),
+                (u.username, u.display_name, u.role, u.child_ref, db.utcnow()),
             )
         placeholders = ",".join("?" * len(names)) or "''"
         conn.execute(f"DELETE FROM users WHERE username NOT IN ({placeholders})", names)

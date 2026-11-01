@@ -20,6 +20,9 @@ def app_client(tmp_path, monkeypatch):
     from schulblick.web.app import create_app
 
     settings = load_settings(os.environ["SCHULBLICK_CONFIG"])
+    # the fixture messages are from October 2026; keep them inside the window whatever today is
+    from dataclasses import replace
+    settings = replace(settings, message_window_days=3650)
     db.init_db(settings.db_path)
     conn = db.connect(settings.db_path)
     auth.sync_users(conn, settings)
@@ -53,8 +56,10 @@ def test_post_without_origin_rejected(app_client):
 def test_parent_sees_everything(app_client):
     assert login(app_client, "papa", "papa-passwort").status_code == 303
     html = app_client.get("/").text
-    for text in ("Max", "Paul", "Lenchen", "Rechtschreibleistung", "Ski-Infoelternabend", "Abrufstatus"):
+    for text in ("Max", "Paul", "Lenchen", "Rechtschreibleistung", "Abrufstatus"):
         assert text in html
+    # parents-only school event; the calendar page has a fixed start, so this does not depend on today
+    assert "Ski-Infoelternabend" in app_client.get("/kalender?von=2026-10-26").text
 
 
 def test_child_sees_only_own(app_client):
@@ -65,6 +70,7 @@ def test_child_sees_only_own(app_client):
                  "Religion - katholisch 5"):
         assert text not in html, text
     assert "Informationen zu Hilfs- und Beratungsangeboten" in html  # addressed to all students
+    assert "Ski-Infoelternabend" not in app_client.get("/kalender?von=2026-10-26").text
 
 
 def test_security_headers(app_client):

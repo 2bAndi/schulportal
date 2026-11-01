@@ -28,7 +28,7 @@ def clients(tmp_path, monkeypatch):
     db.init_db(settings.db_path)
     conn = db.connect(settings.db_path)
     auth.sync_users(conn, settings)
-    for name in ("papa", "lena", "paul"):
+    for name in ("papa", "lena", "paul", "nachhilfe"):
         auth.set_password(conn, name, f"{name}-passwort")
     Syncer(settings, conn, FixtureClient(FIX)).run()
     app = create_app(settings)
@@ -41,7 +41,7 @@ def clients(tmp_path, monkeypatch):
         assert r.status_code == 303
         return c
 
-    made = {u: make(u) for u in ("papa", "lena", "paul")}
+    made = {u: make(u) for u in ("papa", "lena", "paul", "nachhilfe")}
     yield made
     for c in made.values():
         c.__exit__(None, None, None)
@@ -205,3 +205,68 @@ def test_series_validation(clients):
     assert r.status_code == 400 and "länger als der Abstand" in r.text
     r = create(papa, "Falsch", ["*"], repeat="hourly")
     assert r.status_code == 400
+
+
+# --------------------------------------------------------------------------- tutor account
+
+
+def test_tutor_overview_is_limited(clients):
+    nina = clients["nachhilfe"]
+    html = nina.get("/").text
+    # her two pupils, not Max
+    assert "Paul" in html and "Lenchen" in html and "Max" not in html
+    assert 'id="hausaufgaben"' in html and 'id="arbeiten"' in html and 'id="tage"' in html
+    for hidden in ('id="vertretungsplan"', 'id="nachrichten"', 'id="anwesenheit"', 'id="stundenplan"',
+                   'id="status"', 'id="morgen"', "Abrufstatus", "Hilfs- und Beratungsangeboten"):
+        assert hidden not in html, hidden
+
+
+def test_tutor_calendar_visibility(clients):
+    papa, lena, nina = clients["papa"], clients["lena"], clients["nachhilfe"]
+    create(papa, "Training Lena", [kid_id("Lena")])
+    create(papa, "Arzt Max", [kid_id("Max")])
+    create(papa, "Urlaub", ["*"])
+    create(papa, "Nur Eltern", ["parents"])
+    view = nina.get(f"/kalender?von={DAY}").text
+    assert "Training Lena" in view and "Urlaub" in view
+    assert "Arzt Max" not in view and "Nur Eltern" not in view
+    # the ICS feed follows the same rules and carries no substitutions
+    page = nina.get("/kalender/abo").text
+    token = re.search(r"/ics/([A-Za-z0-9_-]+)\.ics", page).group(1)
+    ics = nina.get(f"/ics/{token}.ics").text
+    assert "Training Lena" in ics and "Arzt Max" not in ics and "Nur Eltern" not in ics
+    assert "(Vertretungsplan)" not in ics
+
+
+def test_tutor_creates_entries_for_her_pupils(clients):
+    papa, lena, paul, nina = clients["papa"], clients["lena"], clients["paul"], clients["nachhilfe"]
+    form = nina.get("/kalender/neu").text
+    assert kid_id("Lena") in form and kid_id("Paul") in form and kid_id("Max") not in form
+    assert create(nina, "Nachhilfe Mathe", [kid_id("Lena")], start_time="16:00").status_code == 303
+    # a crafted value for Max or the whole family is not accepted
+    r = create(nina, "Fremd", [kid_id("Max"), "*"])
+    assert r.status_code == 400
+    assert "Nachhilfe Mathe" in papa.get(f"/kalender?von={DAY}").text
+    assert "Nachhilfe Mathe" in lena.get(f"/kalender?von={DAY}").text
+    assert "Nachhilfe Mathe" not in paul.get(f"/kalender?von={DAY}").text
+    ev = event_id(nina, "Nachhilfe Mathe")
+    assert nina.get(f"/kalender/{ev}").status_code == 200
+    # she cannot edit entries made by the family
+    create(papa, "Familienessen", ["*"])
+    assert nina.get(f"/kalender/{event_id(papa, 'Familienessen')}").status_code == 404
+
+
+def test_theme_switch(clients):
+    papa = clients["papa"]
+    html = papa.get("/kalender").text
+    assert "Farbe: automatisch" in html and "data-theme" not in html.split("<head>")[0]
+    r = papa.post("/farbe", data={"theme": "dark", "next": "/kalender"}, headers=ORIGIN, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/kalender"
+    html = papa.get("/kalender").text
+    assert '<html lang="de" data-theme="dark">' in html and "Farbe: dunkel" in html
+    papa.post("/farbe", data={"theme": "light"}, headers=ORIGIN)
+    assert 'data-theme="light"' in papa.get("/").text
+    # open redirects and unknown values are refused
+    r = papa.post("/farbe", data={"theme": "pink", "next": "//evil.example"}, headers=ORIGIN, follow_redirects=False)
+    assert r.headers["location"] == "/"
+    assert "data-theme" not in papa.get("/").text.split("<head>")[0]

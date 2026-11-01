@@ -67,6 +67,14 @@ display_name = "Lotte"
 role = "child"
 child = "Carlotta"
 
+# Nachhilfe: sieht nur Hausaufgaben, Arbeiten und Kalender der genannten Kinder,
+# keine Nachrichten, Vertretungen, Anwesenheit, Stundenpläne oder Morgenübersicht.
+[[users]]
+username = "melissa"
+display_name = "Melissa"
+role = "tutor"
+children = ["Boje", "Carlotta"]
+
 # --------------------------------------------------------------------------- KI (optional)
 # Zusammenfassungen, Aufgaben aus Nachrichten, Zuordnung als Rückfall, Morgenübersicht.
 # Schlüssel in secrets/anthropic_key (leere Datei = aus). Ohne Schlüssel läuft alles wie bisher.

@@ -1,4 +1,10 @@
 <nav class="tabs" aria-label="Ansichten">
   <a href="/" class="{{ 'on' if active == 'uebersicht' }}" {% if active == 'uebersicht' %}aria-current="page"{% endif %}>Übersicht</a>
   <a href="/kalender" class="{{ 'on' if active == 'kalender' }}" {% if active == 'kalender' %}aria-current="page"{% endif %}>Kalender</a>
+  {% set th = theme_of(request) %}
+  <form class="themebtn" method="post" action="/farbe">
+    <input type="hidden" name="theme" value="{{ next_theme[th] }}">
+    <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+    <button class="btn-link" type="submit" title="Hell, dunkel oder wie das Gerät">{{ '◐' if th == 'auto' else ('☀' if th == 'light' else '☾') }} {{ theme_label[th] }}</button>
+  </form>
 </nav>

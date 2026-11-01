@@ -44,7 +44,7 @@ class _Collector:
         return self.builder._events(self.scope, ("exam", "test", "holiday", "general"), horizon=horizon)
 
     def plan(self) -> list[dict]:
-        if not self.scope:
+        if not self.scope or self.user.is_tutor:  # tutors do not see the substitution plan
             return []
         return [d for d in self.builder._plan(self.scope) if self.start <= d["day"] <= self.end]
 

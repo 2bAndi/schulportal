@@ -21,8 +21,14 @@ class ChildConfig:
 class UserConfig:
     username: str
     display_name: str
-    role: str  # "parent" | "child"
+    role: str  # "parent" | "child" | "tutor"
     child: str | None = None  # first_name of the child for role == "child"
+    children: tuple[str, ...] = ()  # first_names of the children for role == "tutor"
+
+    @property
+    def child_ref(self) -> str | None:
+        """Value stored in users.child_first_name: one name for a child, comma-separated names for a tutor."""
+        return ",".join(self.children) if self.role == "tutor" else self.child
 
 
 @dataclass(frozen=True)
@@ -108,14 +114,22 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
             display_name=u.get("display_name", u["username"]),
             role=u["role"],
             child=u.get("child"),
+            children=tuple(u.get("children", [])),
         )
         for u in raw.get("users", [])
     )
+    known = {c.first_name for c in children}
     for u in users:
-        if u.role not in {"parent", "child"}:
-            raise ValueError(f"User {u.username}: role must be 'parent' or 'child'")
-        if u.role == "child" and not any(c.first_name == u.child for c in children):
+        if u.role not in {"parent", "child", "tutor"}:
+            raise ValueError(f"User {u.username}: role must be 'parent', 'child' or 'tutor'")
+        if u.role == "child" and u.child not in known:
             raise ValueError(f"User {u.username}: child '{u.child}' is not listed under [[children]]")
+        if u.role == "tutor":
+            if not u.children:
+                raise ValueError(f"User {u.username}: a tutor needs children = [...]")
+            for name in u.children:
+                if name not in known:
+                    raise ValueError(f"User {u.username}: child '{name}' is not listed under [[children]]")
 
     return Settings(
         db_path=Path(os.environ.get("SCHULBLICK_DB", "/data/schulblick.db")),

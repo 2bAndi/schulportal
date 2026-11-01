@@ -54,7 +54,8 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 | **Familienkalender** | eigene Einträge + Schule | Gemeinsamer Kalender mit Rechten pro Person und ICS-Abo fürs Handy, siehe [unten](#familienkalender) |
 
 Die Oberfläche funktioniert auf dem Handy und lässt sich zum Startbildschirm hinzufügen. Sie hat einen hellen und
-einen dunklen Modus und lädt keine externen Schriften oder Skripte.
+einen dunklen Modus und lädt keine externen Schriften oder Skripte. Der Knopf **Farbe** rechts neben den Reitern
+schaltet zwischen automatisch (wie das Gerät), hell und dunkel um; die Wahl gilt pro Gerät (Cookie).
 
 ## So funktioniert es
 
@@ -99,6 +100,12 @@ Jeder Eintrag trägt die Liste der Kinder, die er betrifft. Die Regeln stehen in
   Stundenplan des Kindes steht, sonst mit dem Hinweis „falls belegt“.
 * **Nachrichten**: Gruppen wie *Eltern …* sehen nur die Eltern. Gruppen wie *Lernende* oder *SuS* sehen zusätzlich
   die passenden Kinder. Nachrichten, die persönlich an die Eltern gehen, bleiben bei den Eltern.
+
+**Nachhilfe-Konto** (`role = "tutor"`): sieht für die in `children` genannten Kinder nur Hausaufgaben,
+Klassenarbeiten, „Die nächsten Tage“ und den Kalender. Im Kalender erscheinen Schultermine und Familieneinträge
+dieser Kinder sowie Einträge für die ganze Familie, aber nichts „Nur Mama und Papa“. Nachrichten, Vertretungsplan,
+Anwesenheit, Stundenpläne, Abrufstatus und die KI-Morgenübersicht gibt es für dieses Konto nicht. Die Nachhilfe kann
+eigene Termine für ihre Kinder eintragen und nur diese ändern; Eltern und das gewählte Kind sehen sie.
 
 Die Rechte werden beim Zusammenstellen der Übersicht geprüft (`OverviewBuilder`), nicht erst in den Vorlagen.
 Tests stellen sicher, dass kein Kind die Daten eines Geschwisters sieht.
@@ -266,7 +273,7 @@ Alles Familienspezifische steht in [`config/family.toml`](config/family.toml). Z
 | `security.require_totp_for_parents` | `false` | Code aus einer Authenticator-App für Elternkonten verlangen |
 | `security.session_days` | `90` | Wie lange ein Gerät angemeldet bleibt |
 | `[[children]]` | – | `first_name` wie im Portal, `display_name` für die Anzeige; die Reihenfolge bestimmt die Farbe |
-| `[[users]]` | – | `username`, `display_name`, `role` (`parent` oder `child`), bei Kindern `child` |
+| `[[users]]` | – | `username`, `display_name`, `role` (`parent`, `child` oder `tutor`), bei Kindern `child`, bei Nachhilfe `children = [...]` |
 
 Umgebungsvariablen (gesetzt in `docker-compose.yml`): `SCHULBLICK_CONFIG`, `SCHULBLICK_DB`, `SCHULBLICK_SPH_SECRET`,
 `SCHULBLICK_COOKIE_SECURE`.

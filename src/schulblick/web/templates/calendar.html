@@ -46,7 +46,8 @@
 <p class="legend note">
   <span class="sw fam"></span> Familientermin
   <span class="sw sch"></span> Schule (nur lesen)
-  {% if not user.is_parent %}· Du siehst deine Termine und die für die ganze Familie.{% endif %}
+  {% if user.is_tutor %}· Du siehst die Termine von {% for k in a.kids %}{{ k.name }}{{ ' und ' if loop.revindex == 2 else (', ' if not loop.last) }}{% endfor %} und die für die ganze Familie.
+  {% elif not user.is_parent %}· Du siehst deine Termine und die für die ganze Familie.{% endif %}
 </p>
 
 <ol class="agenda card">

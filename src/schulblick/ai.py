@@ -344,7 +344,9 @@ def process_messages(conn: sqlite3.Connection, settings: Settings, client: AICli
 
 
 def _facts_for(conn: sqlite3.Connection, settings: Settings, user, today: date) -> tuple[str, str] | None:
-    """Plain-text facts for one account (no attendance unless configured)."""
+    """Plain-text facts for one account (no attendance unless configured). None for tutors."""
+    if getattr(user, "is_tutor", False):
+        return None
     from .web.views import OverviewBuilder, fmt_short
 
     ov = OverviewBuilder(conn, settings, user, since=None,

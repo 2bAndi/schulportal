@@ -12,7 +12,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #141917; --surface: #1c2320; --ink: #e7ece9; --muted: #9aa8a1; --line: #2f3a35;
     --chalk: #7fc4ae; --chalk-bg: #1d2f29;
     --k1: #8fb4f5; --k1-bg: #1f2b40; --k2: #f0b46a; --k2-bg: #3a2b17; --k3: #f08fbb; --k3-bg: #3d1f2d;
@@ -20,6 +20,14 @@
     --warn: #f2c06b; --warn-bg: #3a2e14; --crit: #f29a92; --crit-bg: #3d1d1b; --ok: #7fd3a0; --ok-bg: #1c3326;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #141917; --surface: #1c2320; --ink: #e7ece9; --muted: #9aa8a1; --line: #2f3a35;
+  --chalk: #7fc4ae; --chalk-bg: #1d2f29;
+  --k1: #8fb4f5; --k1-bg: #1f2b40; --k2: #f0b46a; --k2-bg: #3a2b17; --k3: #f08fbb; --k3-bg: #3d1f2d;
+  --k4: #a8d47e; --k4-bg: #24321a;
+  --warn: #f2c06b; --warn-bg: #3a2e14; --crit: #f29a92; --crit-bg: #3d1d1b; --ok: #7fd3a0; --ok-bg: #1c3326;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -170,7 +178,9 @@ footer { color: var(--muted); font-size: .78rem; text-align: center; }
 
 /* ---------------------------------------------------------------- family calendar */
 :root { --par: #5b4a8a; --par-bg: #ece8f6; }
-@media (prefers-color-scheme: dark) { :root { --par: #c3b4ef; --par-bg: #2b2540; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --par: #c3b4ef; --par-bg: #2b2540; } }
+:root[data-theme="dark"] { --par: #c3b4ef; --par-bg: #2b2540; }
+:root[data-theme="light"] { color-scheme: light; }
 .wrap.narrow { max-width: 640px; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
 .tabs a { text-decoration: none; color: var(--muted); padding: 8px 14px; font-weight: 700; border-bottom: 3px solid transparent; margin-bottom: -1px; }
@@ -283,3 +293,8 @@ h2 small a { color: var(--chalk); }
 .msgs .more { grid-column: 1 / -1; font-size: .78rem; color: var(--chalk); }
 .msgs details[open] .more { display: none; }
 .ev.todo strong { color: var(--chalk); }
+
+/* ---------------------------------------------------------------- colour switch */
+.tabs { align-items: center; }
+.tabs .themebtn { margin-left: auto; }
+.tabs .themebtn .btn-link { font-size: .8rem; padding: 3px 10px; white-space: nowrap; }

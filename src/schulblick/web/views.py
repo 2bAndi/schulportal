@@ -104,6 +104,7 @@ class Overview:
     first_visit: bool = False
     message_days: int = 5
     stale_weeks: int = 3
+    limited: bool = False  # tutor view: homework, exams and calendar only
 
 
 class OverviewBuilder:
@@ -128,7 +129,8 @@ class OverviewBuilder:
                            first_name=r["first_name"]))
         out.sort(key=lambda k: k.slot)
         if not self.user.is_parent:
-            out = [k for k in out if k.first_name.lower() == (self.user.child_first_name or "").lower()]
+            allowed = {n.lower() for n in self.user.child_first_names}
+            out = [k for k in out if k.first_name.lower() in allowed]
         return out
 
     def _visible(self, ids: list[str], scope: set[str]) -> list[str]:
@@ -148,7 +150,8 @@ class OverviewBuilder:
         scope = {k.id for k in kids}
         ov = Overview(user=self.user, kids=kids, kid_by_id={k.id: k for k in kids}, today=self.today,
                       week=self._week(self.today), first_visit=self.since is None,
-                      show_attendance=self.user.is_parent or self.s.kids_see_attendance,
+                      show_attendance=self.user.is_parent or (self.s.kids_see_attendance and not self.user.is_tutor),
+                      limited=self.user.is_tutor,
                       message_days=self.s.message_window_days, stale_weeks=max(1, self.s.homework_stale_days // 7))
         if not kids:
             ov.status = self._status()
@@ -160,6 +163,13 @@ class OverviewBuilder:
         exams_all = self._events(scope, kinds=("exam", "test"), horizon=self.s.exams_horizon_days)
         ov.exams = exams_all
         ov.events = self._events(scope, kinds=("general", "holiday"), horizon=self.s.events_horizon_days)
+        if ov.limited:
+            # tutor: no substitutions, messages, attendance, timetables or AI summaries
+            ov.family = fam.list_events(self.conn, self.user, self.today,
+                                        self.today + timedelta(days=self.s.upcoming_days))
+            ov.days = self._upcoming(ov)
+            ov.new_items = self._new_items(ov)
+            return ov
         ov.plan = self._plan(scope)
         ov.family = fam.list_events(self.conn, self.user, self.today,
                                     self.today + timedelta(days=self.s.upcoming_days))

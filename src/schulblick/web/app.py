@@ -22,6 +22,19 @@ log = logging.getLogger("schulblick.web")
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 
+THEME_COOKIE = "schulblick_theme"
+THEMES = ("auto", "light", "dark")
+NEXT_THEME = {"auto": "light", "light": "dark", "dark": "auto"}
+THEME_LABEL = {"auto": "Farbe: automatisch", "light": "Farbe: hell", "dark": "Farbe: dunkel"}
+
+
+def _theme(request) -> str:
+    value = request.cookies.get(THEME_COOKIE, "auto")
+    return value if value in THEMES else "auto"
+
+
+templates.env.globals.update(theme_of=_theme, next_theme=NEXT_THEME, theme_label=THEME_LABEL)
+
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 
@@ -125,6 +138,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return templates.TemplateResponse(request, "overview.html", {"ov": ov, "version": __version__,
                                                                          "active": "uebersicht"})
 
+    # -- colour scheme (per device, cookie) ------------------------------------------------
+
+    @app.post("/farbe")
+    async def set_theme(request: Request):
+        form = await request.form()
+        theme = form.get("theme") if form.get("theme") in THEMES else "auto"
+        back = form.get("next") or "/"
+        if not back.startswith("/") or back.startswith("//"):
+            back = "/"
+        response = RedirectResponse(back, status_code=303)
+        if theme == "auto":
+            response.delete_cookie(THEME_COOKIE)
+        else:
+            response.set_cookie(THEME_COOKIE, theme, max_age=400 * 86400, httponly=True,
+                                secure=settings.cookie_secure, samesite="lax")
+        return response
+
     # -- family calendar -----------------------------------------------------------------
 
     def current_user(request: Request, conn):
@@ -142,6 +172,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def kids_for_form(conn) -> list:
         return OverviewBuilder(conn, settings, auth_parent_view, None).kids()
 
+    def form_kids(conn, user) -> list:
+        """Children offered in the event form: all for parents, the assigned ones for a tutor."""
+        if user.is_parent:
+            return kids_for_form(conn)
+        if user.is_tutor:
+            return OverviewBuilder(conn, settings, user, None).kids()
+        return []
+
+    def tutor_ids(conn, user) -> set[str] | None:
+        return family.scope_ids(conn, user) if user.is_tutor else None
+
     # a pseudo parent used only to list all children for the parent form
     auth_parent_view = auth.User(id=0, username="", display_name="", role="parent", child_first_name=None,
                                  has_totp=False, prev_visit=None)
@@ -151,7 +192,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return templates.TemplateResponse(request, "event_form.html", {
             "user": user, "values": values, "errors": errors, "event": event, "own_child_id": own,
             "occurrence": occurrence, "repeats": family.REPEATS,
-            "kids": kids_for_form(conn) if user.is_parent else [], "version": __version__,
+            "kids": form_kids(conn, user), "version": __version__,
             "active": "kalender",
         }, status_code=status)
 
@@ -173,7 +214,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return RedirectResponse("/login", status_code=303)
         own = family.child_id_for(conn, user)
         return form_page(request, conn, user, family.form_values(None, parse_day(datum) or today(), own,
-                                                                  user.is_parent), [])
+                                                                  user.is_parent, tutor_ids(conn, user)), [])
 
     @app.post("/kalender/neu", response_class=HTMLResponse)
     async def create_event(request: Request, conn=Depends(get_conn)):
@@ -184,7 +225,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         data = {k: form.get(k) for k in form.keys()}
         data["audience"] = form.getlist("audience")
         own = family.child_id_for(conn, user)
-        valid = {k.id for k in kids_for_form(conn)}
+        valid = {k.id for k in form_kids(conn, user)}
         res = family.parse_form(data, user, own, valid)
         if res.errors:
             return form_page(request, conn, user, res.values, res.errors, status=400)
@@ -236,7 +277,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         data = {k: form.get(k) for k in form.keys()}
         data["audience"] = form.getlist("audience")
         own = family.child_id_for(conn, user)
-        res = family.parse_form(data, user, own, {k.id for k in kids_for_form(conn)})
+        res = family.parse_form(data, user, own, {k.id for k in form_kids(conn, user)})
         if res.errors:
             return form_page(request, conn, user, res.values, res.errors, event=ev, status=400)
         family.save_event(conn, user, res.data, event_id=event_id)
