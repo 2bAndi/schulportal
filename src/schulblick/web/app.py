@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime
@@ -33,7 +34,18 @@ def _theme(request) -> str:
     return value if value in THEMES else "auto"
 
 
-templates.env.globals.update(theme_of=_theme, next_theme=NEXT_THEME, theme_label=THEME_LABEL)
+def _asset_version() -> str:
+    """Short hash over the static files, so browsers fetch new CSS/JS after every update."""
+    h = hashlib.sha1()
+    for f in sorted((HERE / "static").glob("*")):
+        if f.is_file():
+            h.update(f.name.encode())
+            h.update(f.read_bytes())
+    return h.hexdigest()[:10]
+
+
+templates.env.globals.update(theme_of=_theme, next_theme=NEXT_THEME, theme_label=THEME_LABEL,
+                             asset_version=_asset_version())
 
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
