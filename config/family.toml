@@ -67,8 +67,8 @@ display_name = "Lotte"
 role = "child"
 child = "Carlotta"
 
-# Nachhilfe: sieht nur Hausaufgaben, Arbeiten und Kalender der genannten Kinder,
-# keine Nachrichten, Vertretungen, Anwesenheit, Stundenpläne oder Morgenübersicht.
+# Nachhilfe: sieht nur Hausaufgaben, Arbeiten, Stundenpläne und Kalender der genannten Kinder,
+# keine Nachrichten, Vertretungen, Anwesenheit oder Morgenübersicht.
 [[users]]
 username = "melissa"
 display_name = "Melissa"

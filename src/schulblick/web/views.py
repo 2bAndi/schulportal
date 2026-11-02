@@ -164,7 +164,8 @@ class OverviewBuilder:
         ov.exams = exams_all
         ov.events = self._events(scope, kinds=("general", "holiday"), horizon=self.s.events_horizon_days)
         if ov.limited:
-            # tutor: no substitutions, messages, attendance, timetables or AI summaries
+            # tutor: timetables yes; no substitutions, messages, attendance or AI summaries
+            ov.timetables = self._timetables(kids)
             ov.family = fam.list_events(self.conn, self.user, self.today,
                                         self.today + timedelta(days=self.s.upcoming_days))
             ov.days = self._upcoming(ov)

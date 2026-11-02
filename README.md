@@ -102,9 +102,9 @@ Jeder Eintrag trägt die Liste der Kinder, die er betrifft. Die Regeln stehen in
   die passenden Kinder. Nachrichten, die persönlich an die Eltern gehen, bleiben bei den Eltern.
 
 **Nachhilfe-Konto** (`role = "tutor"`): sieht für die in `children` genannten Kinder nur Hausaufgaben,
-Klassenarbeiten, „Die nächsten Tage“ und den Kalender. Im Kalender erscheinen Schultermine und Familieneinträge
+Klassenarbeiten, „Die nächsten Tage“, Stundenpläne und den Kalender. Im Kalender erscheinen Schultermine und Familieneinträge
 dieser Kinder sowie Einträge für die ganze Familie, aber nichts „Nur Mama und Papa“. Nachrichten, Vertretungsplan,
-Anwesenheit, Stundenpläne, Abrufstatus und die KI-Morgenübersicht gibt es für dieses Konto nicht. Die Nachhilfe kann
+Anwesenheit, Abrufstatus und die KI-Morgenübersicht gibt es für dieses Konto nicht. Die Nachhilfe kann
 eigene Termine für ihre Kinder eintragen und nur diese ändern; Eltern und das gewählte Kind sehen sie.
 
 Die Rechte werden beim Zusammenstellen der Übersicht geprüft (`OverviewBuilder`), nicht erst in den Vorlagen.

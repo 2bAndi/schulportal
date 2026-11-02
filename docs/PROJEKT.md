@@ -70,9 +70,9 @@ Schulportal Hessen ──(Elternkonto, httpx)──► worker ──► SQLite �
    - Morgenübersicht „Heute früh“ um 06:15: zugeklappte Karte, aufgeklappt Stichpunkte pro Kind, „Alle“ und
      „Familie“; Kinder bekommen ihre eigene Version in der Du-Form
    - Alles über erzwungene Werkzeugaufrufe (`record_message`, `record_digest`), Ergebnisse in SQLite
-5. **Nachhilfe-Konto** (`role = "tutor"`, `children = [...]`): Hausaufgaben, Arbeiten, „Die nächsten Tage“ und
-   Kalender der zugeordneten Kinder; sieht Familieneinträge dieser Kinder und für die ganze Familie, aber nichts
-   „Nur Mama und Papa“; keine Nachrichten, Vertretungen, Anwesenheit, Stundenpläne, KI-Übersicht. Kann eigene
+5. **Nachhilfe-Konto** (`role = "tutor"`, `children = [...]`): Hausaufgaben, Arbeiten, „Die nächsten Tage“,
+   Stundenpläne und Kalender der zugeordneten Kinder; sieht Familieneinträge dieser Kinder und für die ganze Familie, aber nichts
+   „Nur Mama und Papa“; keine Nachrichten, Vertretungen, Anwesenheit, KI-Übersicht. Kann eigene
    Termine für ihre Kinder anlegen und nur diese ändern.
 6. **Farbe umschalten**: Knopf neben den Reitern, automatisch → hell → dunkel, pro Gerät per Cookie.
 
@@ -140,7 +140,7 @@ Auf dem Server: `sudo cp -r /tmp/schulblick-neu/* /opt/schulblick/ && cd /opt/sc
 | 24.10.2026 | Schlüssel nur im worker; eigener Workspace „schulblick“ mit 20 $ Limit, zusätzlich max. 150 Aufrufe/Tag |
 | 24.10.2026 | Morgenübersicht eingeklappt beim Aufruf, als Stichpunkte statt Fließtext |
 | 02.11.2026 | Hintergrund hell/dunkel umschaltbar, pro Gerät |
-| 02.11.2026 | Nachhilfe-Zugang für Melissa: Boje und Lotte; Hausaufgaben, Arbeiten, Kalender inkl. Familienterminen dieser Kinder; darf eigene Termine eintragen |
+| 02.11.2026 | Nachhilfe-Zugang für Melissa: Boje und Lotte; Hausaufgaben, Arbeiten, Stundenpläne, Kalender inkl. Familienterminen dieser Kinder; darf eigene Termine eintragen |
 
 ## 8. Verlauf
 

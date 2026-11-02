@@ -216,7 +216,8 @@ def test_tutor_overview_is_limited(clients):
     # her two pupils, not Max
     assert "Paul" in html and "Lenchen" in html and "Max" not in html
     assert 'id="hausaufgaben"' in html and 'id="arbeiten"' in html and 'id="tage"' in html
-    for hidden in ('id="vertretungsplan"', 'id="nachrichten"', 'id="anwesenheit"', 'id="stundenplan"',
+    assert 'id="stundenplan"' in html
+    for hidden in ('id="vertretungsplan"', 'id="nachrichten"', 'id="anwesenheit"',
                    'id="status"', 'id="morgen"', "Abrufstatus", "Hilfs- und Beratungsangeboten"):
         assert hidden not in html, hidden
 

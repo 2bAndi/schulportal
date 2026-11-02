@@ -68,7 +68,7 @@
   <a href="#nachrichten">Nachrichten{% if ov.messages %}<span class="n">{{ ov.messages|length }}</span>{% endif %}</a>
   {% endif %}
   {% if ov.show_attendance %}<a href="#anwesenheit">Anwesenheit</a>{% endif %}
-  {% if not ov.limited %}<a href="#stundenplan">Stundenplan</a>{% endif %}
+  <a href="#stundenplan">Stundenplan</a>
   {% if ov.user.is_parent %}<a href="#status">Abrufstatus</a>{% endif %}
 </nav>
 
@@ -224,7 +224,6 @@
 </section>
 {% endif %}
 
-{% if not ov.limited %}
 <section id="stundenplan" class="tt-wrap">
   <h2>Stundenplan <small>Klassenplan; grau = Wahl- oder Zusatzangebot</small></h2>
   {% for t in ov.timetables %}
@@ -242,7 +241,7 @@
   </details>
   {% else %}<div class="card empty">Noch kein Stundenplan abgerufen.</div>{% endfor %}
 </section>
-{% endif %}
+
 
 {% if ov.user.is_parent %}
 <section id="status">
