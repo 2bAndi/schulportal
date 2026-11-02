@@ -323,3 +323,8 @@ nav.jump.arranging .jump-links a { cursor: grab; touch-action: none; user-select
 nav.jump.arranging .jump-links a.dragging { opacity: .55; cursor: grabbing; }
 nav.jump.arranging .jump-links a:focus-visible { outline: 2px solid var(--chalk); }
 @media (max-width: 560px) { nav.jump { flex-wrap: wrap; } nav.jump .jump-links { flex-basis: 100%; } }
+
+/* an opened per-subject table takes the whole row; the other cards follow below */
+.attc:has(> details[open]) { grid-column: 1 / -1; }
+.attc td.openexc { color: var(--crit); font-weight: 700; }
+.attc:has(> details[open]) .stats { grid-template-columns: repeat(auto-fit, minmax(150px, max-content)); column-gap: 40px; }

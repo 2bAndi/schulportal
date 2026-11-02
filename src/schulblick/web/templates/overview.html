@@ -192,8 +192,8 @@
       </div>
       <details><summary>pro Fach</summary>
         <div class="tbl"><table>
-          <thead><tr><th>Kurs</th>{% for c in a.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
-          <tbody>{% for r in a.rows %}<tr><td>{{ r.course }}</td>{% for c in a.columns %}<td>{{ r['values'].get(c, '') }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+          <thead><tr><th>Kurs</th>{% for c in a.columns %}<th>{{ c }}</th>{% endfor %}<th>offene Entschuldigungen</th></tr></thead>
+          <tbody>{% for r in a.rows %}<tr><td>{{ r.course }}</td>{% for c in a.columns %}<td>{{ r['values'].get(c, '') }}</td>{% endfor %}<td class="{{ 'openexc' if r.open }}">{{ r.open or '' }}</td></tr>{% endfor %}</tbody>
         </table></div>
       </details>
     </div>

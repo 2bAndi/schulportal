@@ -73,3 +73,16 @@ def test_portal_dates():
     assert parse_portal_datetime("heute 09:00", now).hour == 9
     assert parse_portal_datetime("gestern 07:01", now).day == 21
     assert parse_portal_datetime("19.10.2026 11:22", now) == datetime(2026, 10, 19, 11, 22, tzinfo=now.tzinfo)
+
+
+def test_open_excuses_counted_once_per_course():
+    from schulblick.sph.parsers import ChildLessons, LessonEntry
+
+    def entry(course, n):
+        return LessonEntry(book_id="1", entry_id=course + str(n), course=course, teacher_code="", teacher_name="",
+                           open_excuses=n, topic="", lesson_date=None, content="", homework=None, homework_done=None)
+
+    child = ChildLessons(pupil_id="1", portal_name="Muster, Max",
+                         entries=[entry("Chemie g8a", 2), entry("Chemie g8a", 2), entry("Deutsch g8a", 1)])
+    by_course = child.open_excuses_by_course()
+    assert sum(by_course.values()) == 3  # not 5: the badge repeats on every entry of a course

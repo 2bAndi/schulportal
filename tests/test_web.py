@@ -128,3 +128,12 @@ def test_reorder_keeps_hidden_slots():
                        "anwesenheit"])
     assert new[0] == "neu" and new[1] == "stundenplan" and new[-1] == "status"
     assert sorted(new) == sorted(BLOCK_KEYS)
+
+
+def test_attendance_shows_open_excuses_per_course(app_client):
+    import re
+    assert login(app_client, "papa", "papa-passwort").status_code == 303
+    html = app_client.get("/").text
+    assert "<th>offene Entschuldigungen</th>" in html
+    # Chemie g8a carries the badge "2" in the fixture
+    assert re.search(r"<td>Chemie g8a</td>(?:<td>[^<]*</td>)*<td class=\"openexc\">2</td>", html)

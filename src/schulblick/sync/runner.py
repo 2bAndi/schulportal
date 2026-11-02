@@ -85,6 +85,7 @@ class Syncer:
         n_entries = 0
         with db.transaction(self.conn):
             for child in children:
+                excuses_by_course = child.open_excuses_by_course()
                 self.conn.execute(
                     "INSERT INTO children(id, portal_name, first_name, updated_at) VALUES(?,?,?,?) "
                     "ON CONFLICT(id) DO UPDATE SET portal_name=excluded.portal_name, first_name=excluded.first_name, "
@@ -92,7 +93,7 @@ class Syncer:
                     (child.pupil_id, child.portal_name, child.first_name, now),
                 )
                 for course in child.courses:
-                    excuses = sum(e.open_excuses for e in child.entries if e.course == course.name)
+                    excuses = excuses_by_course.get(P.normalize_course(course.name), 0)
                     self.conn.execute(
                         "INSERT INTO courses(child_id, book_id, name, norm, teacher_code, teacher_name, open_excuses, "
                         "updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(child_id, book_id) DO UPDATE SET "
@@ -140,7 +141,7 @@ class Syncer:
                         "totals": child.attendance.totals,
                         "occurrences": child.attendance.occurrences,
                         "minutes_late": child.attendance.minutes_late,
-                        "open_excuses": sum(e.open_excuses for e in child.entries),
+                        "open_excuses": sum(excuses_by_course.values()),
                     }
                     h = _hash(db.dumps(data["totals"]))
                     row = self.conn.execute("SELECT hash FROM attendance WHERE child_id=?", (child.pupil_id,)).fetchone()

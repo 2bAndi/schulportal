@@ -114,6 +114,15 @@ class ChildLessons:
     def first_name(self) -> str:
         return first_name_from_portal(self.portal_name)
 
+    def open_excuses_by_course(self) -> dict[str, int]:
+        """Open excuses per course (normalised name). The portal shows the count as a badge on every entry
+        of a course in "Aktuelle Einträge", so several entries of one course must not be added up."""
+        out: dict[str, int] = {}
+        for e in self.entries:
+            key = normalize_course(e.course)
+            out[key] = max(out.get(key, 0), e.open_excuses)
+        return out
+
 
 def first_name_from_portal(portal_name: str) -> str:
     """'Muster, Lena Marie' -> 'Lena'."""

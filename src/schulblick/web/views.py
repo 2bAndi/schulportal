@@ -460,14 +460,28 @@ class OverviewBuilder:
             totals = data.get("totals", {})
             occ = data.get("occurrences", {})
             late_key = next((k for k in totals if k.lower().startswith("verspätet")), None)
+            # open excuses per course come from "Mein Unterricht" (badges), not from the attendance table
+            open_by_norm = {c["norm"]: c["open_excuses"] for c in self.conn.execute(
+                "SELECT norm, name, open_excuses FROM courses WHERE child_id=?", (r["child_id"],))}
+            names = {c["norm"]: c["name"] for c in self.conn.execute(
+                "SELECT norm, name FROM courses WHERE child_id=?", (r["child_id"],))}
+            rows = []
+            matched = set()
+            for row in data.get("rows", []):
+                norm = normalize_course(row.get("course", ""))
+                matched.add(norm)
+                rows.append({**row, "open": open_by_norm.get(norm, 0)})
+            for norm, n in open_by_norm.items():  # courses with open excuses but no attendance row
+                if n and norm not in matched:
+                    rows.append({"course": names.get(norm, norm), "teacher": "", "values": {}, "open": n})
             out.append({
                 "child_id": r["child_id"],
                 "excused": totals.get("entschuldigt", 0),
                 "missing": totals.get("fehlend", 0),
                 "late_times": occ.get(late_key, 0) if late_key else 0,
                 "late_minutes": data.get("minutes_late", 0),
-                "open_excuses": data.get("open_excuses", 0),
-                "rows": data.get("rows", []),
+                "open_excuses": sum(open_by_norm.values()) if open_by_norm else data.get("open_excuses", 0),
+                "rows": rows,
                 "columns": data.get("columns", []),
                 "new": self._is_new(r["changed_at"]),
             })

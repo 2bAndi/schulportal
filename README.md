@@ -46,7 +46,7 @@ alle Kinder, jedes Kind sieht nur seine eigenen Einträge, im gleichen Aufbau.
 | **Klassenarbeiten und Lernkontrollen** | Kalender (*Klausurplaner*) | Zuordnung zum Kind über die Lerngruppe, Vorschau über 10 Wochen |
 | **Vertretungsplan** | *Vertretungsplan* | Nur Zeilen für die Klassen der Kinder; „falls belegt“, wenn die Kurswahl unklar ist |
 | **Nachrichten** | *Nachrichten* (verschlüsselt) | Die letzten 5 Tage mit Text, zugeordnet über die Empfängergruppen |
-| **Anwesenheit** | *Mein Unterricht* → Anwesenheiten | Entschuldigt, fehlend, verspätet (Anzahl und Minuten), offene Entschuldigungen |
+| **Anwesenheit** | *Mein Unterricht* → Anwesenheiten | Entschuldigt, fehlend, verspätet (Anzahl und Minuten), offene Entschuldigungen; „pro Fach“ zeigt sie je Kurs und nimmt aufgeklappt die ganze Breite ein |
 | **Stundenplan** | *Stundenplan* | Klassenplan; Religion bzw. Ethik wird aus den Kursen des Kindes erkannt |
 | **Neu seit dem letzten Besuch** | alle Bereiche | Neue oder geänderte Einträge sind mit *neu* markiert |
 | **Abrufstatus** | – | Eltern sehen, wann jeder Bereich zuletzt abgerufen wurde und ob Fehler auftraten |
