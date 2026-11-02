@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS users (
     totp_secret TEXT,
     prev_visit TEXT,
     last_visit TEXT,
+    layout TEXT,                        -- JSON {"order": [...], "collapsed": [...]} for the overview
     created_at TEXT NOT NULL
 );
 
@@ -272,6 +273,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "ics_token" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN ics_token TEXT")
+    if "layout" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN layout TEXT")
     event_cols = {r["name"] for r in conn.execute("PRAGMA table_info(family_events)")}
     for name, ddl in (("repeat", "TEXT NOT NULL DEFAULT 'none'"), ("repeat_until", "TEXT"),
                       ("exdates", "TEXT NOT NULL DEFAULT '[]'"), ("skip_holidays", "INTEGER NOT NULL DEFAULT 0")):

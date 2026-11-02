@@ -77,3 +77,54 @@ def test_security_headers(app_client):
     r = app_client.get("/login")
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
     assert r.headers["x-robots-tag"].startswith("noindex")
+
+
+def test_layout_order_and_collapse(app_client):
+    import re
+    assert login(app_client, "papa", "papa-passwort").status_code == 303
+    H = {"origin": "http://testserver", "x-requested-with": "fetch"}
+
+    def order(html):
+        return re.findall(r'<section id="([a-z]+)" class="block"', html)
+
+    html = app_client.get("/").text
+    default = order(html)
+    assert default[:3] == ["neu", "tage", "hausaufgaben"] or default[:2] == ["tage", "hausaufgaben"]
+    assert html.count("<details class=\"blk\" open>") == len(default)
+
+    # move the timetable to the top; blocks that are not shown keep their slots
+    visible = [k for k in default if k != "stundenplan"]
+    r = app_client.post("/ansicht", data={"order": ",".join(["stundenplan"] + visible)}, headers=H)
+    assert r.status_code == 204
+    html = app_client.get("/").text
+    assert order(html)[0] == "stundenplan"
+    jump = re.findall(r'<a href="#([a-z]+)" data-key=', html)
+    assert jump == order(html)
+
+    # collapse one block, then reopen it
+    app_client.post("/ansicht", data={"block": "arbeiten", "open": "0"}, headers=H)
+    html = app_client.get("/").text
+    assert re.search(r'id="arbeiten" class="block" data-key="arbeiten">\s*<details class="blk">', html)
+    app_client.post("/ansicht", data={"block": "arbeiten", "open": "1"}, headers=H)
+    assert re.search(r'id="arbeiten" class="block" data-key="arbeiten">\s*<details class="blk" open>',
+                     app_client.get("/").text)
+
+    # unknown keys are ignored; reset restores the default order
+    app_client.post("/ansicht", data={"order": "evil,stundenplan"}, headers=H)
+    app_client.post("/ansicht", data={"order": ""}, headers=H)
+    assert order(app_client.get("/").text) == default
+
+
+def test_layout_requires_login(app_client):
+    r = app_client.post("/ansicht", data={"order": "tage"}, headers={"origin": "http://testserver"})
+    assert r.status_code == 401
+
+
+def test_reorder_keeps_hidden_slots():
+    from schulblick.web.views import BLOCK_KEYS, full_order, reorder
+    assert full_order([]) == BLOCK_KEYS
+    # "neu" and "status" are not on the page; they stay where they were
+    new = reorder([], ["stundenplan", "tage", "hausaufgaben", "arbeiten", "vertretungsplan", "nachrichten",
+                       "anwesenheit"])
+    assert new[0] == "neu" and new[1] == "stundenplan" and new[-1] == "status"
+    assert sorted(new) == sorted(BLOCK_KEYS)

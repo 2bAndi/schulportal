@@ -1,0 +1,17 @@
+fastapi==0.161.0
+uvicorn[standard]==0.54.0
+jinja2==3.1.6
+python-multipart==0.0.32
+httpx==0.28.1
+selectolax==1.0.2
+pycryptodome==4.1.0
+apscheduler==3.11.3
+argon2-cffi==25.1.0
+pyotp==2.10.0
+qrcode==8.2
+icalendar==7.3.0
+recurring-ical-events==3.8.2
+anthropic==2.2.0
+
+[dev]
+pytest

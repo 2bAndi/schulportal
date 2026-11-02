@@ -75,6 +75,8 @@ Schulportal Hessen ──(Elternkonto, httpx)──► worker ──► SQLite �
    „Nur Mama und Papa“; keine Nachrichten, Vertretungen, Anwesenheit, KI-Übersicht. Kann eigene
    Termine für ihre Kinder anlegen und nur diese ändern.
 6. **Farbe umschalten**: Knopf neben den Reitern, automatisch → hell → dunkel, pro Gerät per Cookie.
+7. **Eigene Anordnung**: alle Blöcke der Übersicht ein- und ausklappbar; Reihenfolge über „⇄ Anordnen“ durch Ziehen
+   der Sprungmarken; beides pro Konto gespeichert, auf allen Geräten gleich.
 
 ## 5. Konten
 
@@ -140,6 +142,7 @@ Auf dem Server: `sudo cp -r /tmp/schulblick-neu/* /opt/schulblick/ && cd /opt/sc
 | 24.10.2026 | Schlüssel nur im worker; eigener Workspace „schulblick“ mit 20 $ Limit, zusätzlich max. 150 Aufrufe/Tag |
 | 24.10.2026 | Morgenübersicht eingeklappt beim Aufruf, als Stichpunkte statt Fließtext |
 | 02.11.2026 | Hintergrund hell/dunkel umschaltbar, pro Gerät |
+| 02.11.2026 | Blöcke einklappbar und per Sprungmarken umsortierbar, gespeichert pro Konto |
 | 02.11.2026 | Nachhilfe-Zugang für Melissa: Boje und Lotte; Hausaufgaben, Arbeiten, Stundenpläne, Kalender inkl. Familienterminen dieser Kinder; darf eigene Termine eintragen |
 
 ## 8. Verlauf

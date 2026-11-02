@@ -58,23 +58,8 @@
 </details>
 {% endif %}
 
-<nav class="jump" aria-label="Bereiche">
-  {% if ov.new_items %}<a href="#neu">Neu<span class="n">{{ ov.new_items|length }}</span></a>{% endif %}
-  <a href="#tage">Nächste Tage</a>
-  <a href="#hausaufgaben">Hausaufgaben</a>
-  <a href="#arbeiten">Arbeiten</a>
-  {% if not ov.limited %}
-  <a href="#vertretungsplan">Vertretungsplan</a>
-  <a href="#nachrichten">Nachrichten{% if ov.messages %}<span class="n">{{ ov.messages|length }}</span>{% endif %}</a>
-  {% endif %}
-  {% if ov.show_attendance %}<a href="#anwesenheit">Anwesenheit</a>{% endif %}
-  <a href="#stundenplan">Stundenplan</a>
-  {% if ov.user.is_parent %}<a href="#status">Abrufstatus</a>{% endif %}
-</nav>
-
-{% if ov.new_items %}
-<section id="neu">
-  <h2>Neu seit deinem letzten Besuch</h2>
+{% macro t_neu() %}Neu seit deinem letzten Besuch{% endmacro %}
+{% macro b_neu() %}
   <ul class="newlist card">
     {% for n in ov.new_items %}
     <li>
@@ -84,13 +69,10 @@
     </li>
     {% endfor %}
   </ul>
-</section>
-{% elif ov.first_visit and ov.kids %}
-<p class="note">Ab deinem nächsten Besuch markiert Schulblick hier, was neu dazugekommen ist.</p>
-{% endif %}
+{% endmacro %}
 
-<section id="tage">
-  <h2>Die nächsten Tage <small><a href="/kalender">ganzer Kalender</a> · <a href="/kalender/neu">+ Termin eintragen</a></small></h2>
+{% macro t_tage() %}Die nächsten Tage <small><a href="/kalender">ganzer Kalender</a> · <a href="/kalender/neu">+ Termin eintragen</a></small>{% endmacro %}
+{% macro b_tage() %}
   {% if ov.days %}
   <div class="days">
     {% for d in ov.days %}
@@ -109,10 +91,10 @@
   {% else %}
   <div class="card empty">In den nächsten Tagen steht nichts Besonderes an.</div>
   {% endif %}
-</section>
+{% endmacro %}
 
-<section id="hausaufgaben">
-  <h2>Hausaufgaben <small>aus „Mein Unterricht“</small></h2>
+{% macro t_hausaufgaben() %}Hausaufgaben <small>aus „Mein Unterricht“</small>{% endmacro %}
+{% macro b_hausaufgaben() %}
   <div class="cols">
     {% for k in ov.kids %}
     {% set items = ov.homework|selectattr('child_id', 'equalto', k.id)|list %}
@@ -133,10 +115,10 @@
     </div>
     {% endfor %}
   </div>
-</section>
+{% endmacro %}
 
-<section id="arbeiten">
-  <h2>Klassenarbeiten und Lernkontrollen</h2>
+{% macro t_arbeiten() %}Klassenarbeiten und Lernkontrollen{% endmacro %}
+{% macro b_arbeiten() %}
   {% if ov.exams %}
   <div class="card tbl"><table>
     <thead><tr><th>Datum</th><th>Zeit</th>{% if multi %}<th>Kind</th>{% endif %}<th>Was</th></tr></thead>
@@ -150,11 +132,10 @@
     </tbody>
   </table></div>
   {% else %}<div class="card empty">Keine Arbeiten im Schulkalender eingetragen.</div>{% endif %}
-</section>
+{% endmacro %}
 
-{% if not ov.limited %}
-<section id="vertretungsplan">
-  <h2>Vertretungsplan</h2>
+{% macro t_vertretungsplan() %}Vertretungsplan{% endmacro %}
+{% macro b_vertretungsplan() %}
   {% if ov.plan %}
   <div class="plan">
     {% for d in ov.plan %}
@@ -173,10 +154,10 @@
     {% endfor %}
   </div>
   {% else %}<div class="card empty">Der Vertretungsplan ist gerade leer.</div>{% endif %}
-</section>
+{% endmacro %}
 
-<section id="nachrichten">
-  <h2>Nachrichten <small>der letzten {{ ov.message_days }} Tage</small></h2>
+{% macro t_nachrichten() %}Nachrichten <small>der letzten {{ ov.message_days }} Tage</small>{% endmacro %}
+{% macro b_nachrichten() %}
   {% if ov.messages %}
   <ul class="msgs card">
     {% for m in ov.messages %}
@@ -195,13 +176,10 @@
     {% endfor %}
   </ul>
   {% else %}<div class="card empty">Keine Nachrichten in den letzten Tagen.</div>{% endif %}
-</section>
-{% endif %}
+{% endmacro %}
 
-
-{% if ov.show_attendance %}
-<section id="anwesenheit">
-  <h2>Anwesenheit <small>seit Schuljahresbeginn, in Unterrichtsstunden</small></h2>
+{% macro t_anwesenheit() %}Anwesenheit <small>seit Schuljahresbeginn, in Unterrichtsstunden</small>{% endmacro %}
+{% macro b_anwesenheit() %}
   <div class="att">
     {% for a in ov.attendance %}{% set k = ov.kid_by_id[a.child_id] %}
     <div class="attc card">
@@ -221,11 +199,10 @@
     </div>
     {% else %}<div class="card empty">Noch keine Anwesenheitsdaten.</div>{% endfor %}
   </div>
-</section>
-{% endif %}
+{% endmacro %}
 
-<section id="stundenplan" class="tt-wrap">
-  <h2>Stundenplan <small>Klassenplan; grau = Wahl- oder Zusatzangebot</small></h2>
+{% macro t_stundenplan() %}Stundenplan <small>Klassenplan; grau = Wahl- oder Zusatzangebot</small>{% endmacro %}
+{% macro b_stundenplan() %}
   {% for t in ov.timetables %}
   <details class="card" {% if loop.first %}open{% endif %}>
     <summary><span class="dot k{{ t.kid.slot }}"></span>{{ t.kid.name }}{% if t.kid.class_name %} · {{ t.kid.class_name }}{% endif %}</summary>
@@ -240,20 +217,50 @@
     </table></div>
   </details>
   {% else %}<div class="card empty">Noch kein Stundenplan abgerufen.</div>{% endfor %}
-</section>
+{% endmacro %}
 
-
-{% if ov.user.is_parent %}
-<section id="status">
-  <h2>Abrufstatus</h2>
+{% macro t_status() %}Abrufstatus{% endmacro %}
+{% macro b_status() %}
   <div class="card tbl"><table class="status">
     <thead><tr><th>Bereich</th><th>Letzter Erfolg</th><th>Letzter Lauf</th></tr></thead>
     <tbody>{% for s in ov.status %}<tr><td>{{ s.area }}</td><td>{{ s.last_ok }}</td><td class="{{ 'ok' if s.ok else 'bad' }}">{{ s.message }}</td></tr>{% endfor %}
     {% if ov.ai_status %}{% set a = ov.ai_status %}<tr><td>KI-Zusammenfassung</td><td>{{ a.last_ok }}</td><td class="{{ 'bad' if a.error else 'ok' }}">{% if a.error %}{{ a.error }} · {% endif %}heute {{ a.calls }} von {{ a.limit }} Aufrufen, {{ a.tokens_in + a.tokens_out }} Tokens</td></tr>{% endif %}</tbody>
   </table></div>
-</section>
+{% endmacro %}
+
+{% set TITLE = {'neu': t_neu, 'tage': t_tage, 'hausaufgaben': t_hausaufgaben, 'arbeiten': t_arbeiten, 'vertretungsplan': t_vertretungsplan, 'nachrichten': t_nachrichten, 'anwesenheit': t_anwesenheit, 'stundenplan': t_stundenplan, 'status': t_status} %}
+{% set BODY = {'neu': b_neu, 'tage': b_tage, 'hausaufgaben': b_hausaufgaben, 'arbeiten': b_arbeiten, 'vertretungsplan': b_vertretungsplan, 'nachrichten': b_nachrichten, 'anwesenheit': b_anwesenheit, 'stundenplan': b_stundenplan, 'status': b_status} %}
+
+<nav class="jump" id="jump" aria-label="Bereiche">
+  <div class="jump-links">
+  {% for b in ov.blocks %}<a href="#{{ b.key }}" data-key="{{ b.key }}">{{ b.label }}{% if b.count %}<span class="n">{{ b.count }}</span>{% endif %}</a>{% endfor %}
+  </div>
+  <div class="jump-tools" hidden>
+    <button type="button" class="btn-link" data-arrange>⇄ Anordnen</button>
+    <button type="button" class="btn-link" data-reset hidden>Standard</button>
+    <button type="button" class="btn-primary" data-done hidden>Fertig</button>
+  </div>
+</nav>
+<p class="note arrange-hint" hidden>Sprungmarken ziehen, um die Blöcke umzusortieren. Mit der Tastatur: Marke anwählen, dann ← und →.</p>
+
+{% if not ov.new_items and ov.first_visit and ov.kids %}
+<p class="note">Ab deinem nächsten Besuch markiert Schulblick hier, was neu dazugekommen ist.</p>
 {% endif %}
+
+<div id="blocks" class="blocks">
+{% for b in ov.blocks %}
+<section id="{{ b.key }}" class="block" data-key="{{ b.key }}">
+  <details class="blk"{% if b.open %} open{% endif %}>
+    <summary><h2>{{ TITLE[b.key]() }}</h2></summary>
+    <div class="blk-body{{ ' tt-wrap' if b.key == 'stundenplan' }}">
+{{ BODY[b.key]() }}
+    </div>
+  </details>
+</section>
+{% endfor %}
+</div>
 
 <footer>Schulblick {{ version }} · Daten aus dem Schulportal Hessen, privat für die Familie</footer>
 </div>
+<script src="/static/app.js?v={{ asset_version }}" defer></script>
 {% endblock %}

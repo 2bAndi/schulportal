@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: schulblick
+Version: 0.1.0
+Summary: Family overview for Schulportal Hessen (parent account): homework, exams, substitutions, messages.
+Requires-Python: >=3.12
+Requires-Dist: fastapi==0.161.0
+Requires-Dist: uvicorn[standard]==0.54.0
+Requires-Dist: jinja2==3.1.6
+Requires-Dist: python-multipart==0.0.32
+Requires-Dist: httpx==0.28.1
+Requires-Dist: selectolax==1.0.2
+Requires-Dist: pycryptodome==4.1.0
+Requires-Dist: apscheduler==3.11.3
+Requires-Dist: argon2-cffi==25.1.0
+Requires-Dist: pyotp==2.10.0
+Requires-Dist: qrcode==8.2
+Requires-Dist: icalendar==7.3.0
+Requires-Dist: recurring-ical-events==3.8.2
+Requires-Dist: anthropic==2.2.0
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

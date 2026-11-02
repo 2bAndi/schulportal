@@ -33,6 +33,57 @@ CHOICE_HINTS = {
 }
 
 
+# Blocks of the overview in their default order: key (= anchor id) and label of the jump link.
+BLOCKS: list[tuple[str, str]] = [
+    ("neu", "Neu"), ("tage", "Nächste Tage"), ("hausaufgaben", "Hausaufgaben"), ("arbeiten", "Arbeiten"),
+    ("vertretungsplan", "Vertretungsplan"), ("nachrichten", "Nachrichten"), ("anwesenheit", "Anwesenheit"),
+    ("stundenplan", "Stundenplan"), ("status", "Abrufstatus"),
+]
+BLOCK_KEYS = [k for k, _ in BLOCKS]
+
+
+def load_layout(conn: sqlite3.Connection, user_id: int) -> dict:
+    """Saved overview layout of one user: {"order": [...], "collapsed": [...]}, both lists of block keys."""
+    row = conn.execute("SELECT layout FROM users WHERE id=?", (user_id,)).fetchone()
+    data = db.loads(row["layout"], {}) if row and row["layout"] else {}
+    if not isinstance(data, dict):
+        data = {}
+    return {"order": clean_keys(data.get("order")), "collapsed": clean_keys(data.get("collapsed"))}
+
+
+def clean_keys(value) -> list[str]:
+    """Known block keys only, without duplicates; accepts a list or a comma-separated string."""
+    if isinstance(value, str):
+        value = value.split(",")
+    out: list[str] = []
+    for k in value or []:
+        k = str(k).strip()
+        if k in BLOCK_KEYS and k not in out:
+            out.append(k)
+    return out
+
+
+def full_order(saved: list[str]) -> list[str]:
+    """Saved order completed with the remaining blocks; new blocks keep their place after their default neighbour."""
+    order = [k for k in saved if k in BLOCK_KEYS]
+    for i, k in enumerate(BLOCK_KEYS):
+        if k in order:
+            continue
+        before = next((p for p in reversed(BLOCK_KEYS[:i]) if p in order), None)
+        order.insert(order.index(before) + 1 if before else 0, k)
+    return order
+
+
+def reorder(saved: list[str], visible: list[str]) -> list[str]:
+    """Put the visible blocks into the new sequence; blocks not on the page keep their slots."""
+    order = full_order(saved)
+    visible = [k for k in clean_keys(visible) if k in order]
+    slots = [i for i, k in enumerate(order) if k in visible]
+    for i, k in zip(slots, visible):
+        order[i] = k
+    return order
+
+
 def _parse_dt(value: str | None) -> datetime | date | None:
     if not value:
         return None
@@ -104,7 +155,8 @@ class Overview:
     first_visit: bool = False
     message_days: int = 5
     stale_weeks: int = 3
-    limited: bool = False  # tutor view: homework, exams and calendar only
+    limited: bool = False  # tutor view: homework, exams, timetables and calendar only
+    blocks: list[dict] = field(default_factory=list)  # visible blocks in the user's order
 
 
 class OverviewBuilder:
@@ -146,6 +198,24 @@ class OverviewBuilder:
     # -- build -------------------------------------------------------------------------
 
     def build(self) -> Overview:
+        ov = self._build()
+        ov.blocks = self._blocks(ov)
+        return ov
+
+    def _blocks(self, ov: Overview) -> list[dict]:
+        available = {
+            "neu": bool(ov.new_items), "tage": True, "hausaufgaben": True, "arbeiten": True,
+            "vertretungsplan": not ov.limited, "nachrichten": not ov.limited, "anwesenheit": ov.show_attendance,
+            "stundenplan": True, "status": self.user.is_parent,
+        }
+        counts = {"neu": len(ov.new_items), "nachrichten": len(ov.messages)}
+        labels = dict(BLOCKS)
+        layout = load_layout(self.conn, self.user.id)
+        collapsed = set(layout["collapsed"])
+        return [{"key": k, "label": labels[k], "count": counts.get(k, 0), "open": k not in collapsed}
+                for k in full_order(layout["order"]) if available[k]]
+
+    def _build(self) -> Overview:
         kids = self.kids()
         scope = {k.id for k in kids}
         ov = Overview(user=self.user, kids=kids, kid_by_id={k.id: k for k in kids}, today=self.today,

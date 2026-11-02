@@ -1,0 +1,2 @@
+[console_scripts]
+schulblick = schulblick.cli:main

@@ -16,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from .. import __version__, db, ics_import
 from ..config import Settings, get_settings
-from . import auth, calendar, family
+from . import auth, calendar, family, views
 from .views import OverviewBuilder
 
 log = logging.getLogger("schulblick.web")
@@ -149,6 +149,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ov = OverviewBuilder(conn, settings, user, since).build()
         return templates.TemplateResponse(request, "overview.html", {"ov": ov, "version": __version__,
                                                                          "active": "uebersicht"})
+
+    # -- overview layout (order and collapsed blocks, per user) ----------------------------
+
+    @app.post("/ansicht")
+    async def save_layout(request: Request, conn=Depends(get_conn)):
+        user = auth.user_for_token(conn, request.cookies.get(auth.COOKIE_NAME))
+        if user is None:
+            return PlainTextResponse("Bitte anmelden.", status_code=401)
+        form = await request.form()
+        layout = views.load_layout(conn, user.id)
+        if "order" in form:
+            raw = str(form.get("order") or "")
+            layout["order"] = views.reorder(layout["order"], views.clean_keys(raw)) if raw else []
+        key = str(form.get("block") or "")
+        if key in views.BLOCK_KEYS and "open" in form:
+            collapsed = [k for k in layout["collapsed"] if k != key]
+            if form.get("open") == "0":
+                collapsed.append(key)
+            layout["collapsed"] = collapsed
+        conn.execute("UPDATE users SET layout=? WHERE id=?", (db.dumps(layout), user.id))
+        if request.headers.get("x-requested-with") == "fetch":
+            return Response(status_code=204)
+        return RedirectResponse("/", status_code=303)
 
     # -- colour scheme (per device, cookie) ------------------------------------------------
 

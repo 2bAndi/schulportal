@@ -57,6 +57,12 @@ Die Oberfläche funktioniert auf dem Handy und lässt sich zum Startbildschirm h
 einen dunklen Modus und lädt keine externen Schriften oder Skripte. Der Knopf **Farbe** rechts neben den Reitern
 schaltet zwischen automatisch (wie das Gerät), hell und dunkel um; die Wahl gilt pro Gerät (Cookie).
 
+**Eigene Anordnung.** Jeder Block der Übersicht lässt sich über seine Überschrift ein- und ausklappen. Mit
+**⇄ Anordnen** in der Sprungleiste werden die Sprungmarken verschiebbar (ziehen mit Maus oder Finger, oder mit
+← und →); **Fertig** ordnet die Blöcke darunter genauso an, **Standard** stellt die ursprüngliche Reihenfolge wieder
+her. Reihenfolge und eingeklappte Blöcke werden pro Konto auf dem Server gespeichert (`users.layout`) und gelten
+damit auf allen Geräten. Ein Sprung zu einem eingeklappten Block klappt ihn auf, ohne das zu speichern.
+
 ## So funktioniert es
 
 ```mermaid
