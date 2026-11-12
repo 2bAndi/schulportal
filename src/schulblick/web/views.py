@@ -42,6 +42,23 @@ BLOCKS: list[tuple[str, str]] = [
 BLOCK_KEYS = [k for k, _ in BLOCKS]
 
 
+def describe_block(value: str, tz) -> str:
+    """German text for the parents' notice from meta.portal_block ("kind|detail|error")."""
+    kind, _, rest = value.partition("|")
+    if kind == "credentials":
+        return ("Das Schulportal hat die Zugangsdaten des Elternkontos abgelehnt, deshalb ist der Abruf angehalten. "
+                "Bitte im Browser anmelden: Klappt es, auf dem Server einmal "
+                "„docker compose run --rm worker schulblick check-login“ ausführen; sonst das Passwort in "
+                "secrets/sph_credentials anpassen.")
+    if kind == "locked":
+        try:
+            until = datetime.fromisoformat(rest.split("|")[0]).astimezone(tz).strftime("%H:%M")
+        except ValueError:
+            until = "später"
+        return f"Das Elternkonto ist im Schulportal vorübergehend gesperrt. Neuer Versuch ab {until} Uhr."
+    return "Der Abruf aus dem Schulportal ist angehalten."
+
+
 def load_layout(conn: sqlite3.Connection, user_id: int) -> dict:
     """Saved overview layout of one user: {"order": [...], "collapsed": [...]}, both lists of block keys."""
     row = conn.execute("SELECT layout FROM users WHERE id=?", (user_id,)).fetchone()
@@ -256,7 +273,7 @@ class OverviewBuilder:
             ov.status = self._status()
             ov.ai_status = self._ai_status()
             row = self.conn.execute("SELECT value FROM meta WHERE key='portal_block'").fetchone()
-            ov.portal_block = row["value"] if row else None
+            ov.portal_block = describe_block(row["value"], self.s.tz) if row else None
         row = self.conn.execute("SELECT MAX(finished_at) FROM sync_runs WHERE ok=1").fetchone()
         if row[0]:
             local = datetime.fromisoformat(row[0]).astimezone(self.s.tz)

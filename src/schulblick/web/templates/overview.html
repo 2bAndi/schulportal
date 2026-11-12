@@ -29,7 +29,7 @@
 {% include "_tabs.html" %}
 
 {% if ov.portal_block %}
-<div class="alert crit" role="alert">Der Abruf aus dem Schulportal ist angehalten: {{ ov.portal_block.split('|')[-1] }}. Bitte Zugangsdaten auf dem Server prüfen.</div>
+<div class="alert crit" role="alert">{{ ov.portal_block }}</div>
 {% endif %}
 {% if not ov.kids %}
 <div class="alert warn">Noch keine Daten. Der erste Abruf aus dem Schulportal läuft gleich nach dem Start des Abrufdienstes.</div>

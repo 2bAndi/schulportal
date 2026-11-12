@@ -47,6 +47,14 @@ def load_profiles(conn: sqlite3.Connection) -> list[ChildProfile]:
     return list(profiles.values())
 
 
+PORTAL_AREAS = {"lessons", "timetables", "substitutions", "calendar", "messages"}
+
+
+def clear_portal_block(conn) -> None:
+    """Lift the pause after rejected credentials; called after every successful portal access."""
+    conn.execute("DELETE FROM meta WHERE key='portal_block'")
+
+
 class Syncer:
     def __init__(self, settings: Settings, conn: sqlite3.Connection, client: SPHClient, ai=None) -> None:
         self.s = settings
@@ -70,6 +78,8 @@ class Syncer:
             raise
         self.conn.execute("UPDATE sync_runs SET finished_at=?, ok=?, message=? WHERE id=?",
                           (db.utcnow(), int(ok), message[:500], run_id))
+        if area in PORTAL_AREAS:
+            clear_portal_block(self.conn)  # the portal accepted us again, e.g. after a manual sync
         return ok
 
     def now_local(self) -> datetime:

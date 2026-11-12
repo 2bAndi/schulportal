@@ -104,6 +104,10 @@ def cmd_check_login(_args) -> int:
     try:
         client.login()
         print("Anmeldung am Schulportal erfolgreich.")
+        from .sync.runner import clear_portal_block
+
+        _settings, conn = _conn()
+        clear_portal_block(conn)  # the worker and the parents' notice resume at once
         return 0
     except Exception as exc:  # noqa: BLE001
         print(f"Anmeldung fehlgeschlagen: {type(exc).__name__}: {exc}")

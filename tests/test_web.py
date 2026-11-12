@@ -137,3 +137,22 @@ def test_attendance_shows_open_excuses_per_course(app_client):
     assert "<th>offene Entschuldigungen</th>" in html
     # Chemie g8a carries the badge "2" in the fixture
     assert re.search(r"<td>Chemie g8a</td>(?:<td>[^<]*</td>)*<td class=\"openexc\">2</td>", html)
+
+
+def test_successful_sync_lifts_portal_block(app_client):
+    from pathlib import Path
+    from schulblick import db
+    from schulblick.config import load_settings
+    from schulblick.fixtures import FixtureClient
+    from schulblick.sync.runner import Syncer
+
+    settings = load_settings(os.environ["SCHULBLICK_CONFIG"])
+    conn = db.connect(settings.db_path)
+    conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('portal_block', "
+                 "'credentials|123.0|portal rejected the parent credentials')")
+    assert login(app_client, "papa", "papa-passwort").status_code == 303
+    html = app_client.get("/").text
+    assert "hat die Zugangsdaten des Elternkontos abgelehnt" in html and "portal rejected" not in html
+    Syncer(settings, conn, FixtureClient(Path("tests/fixtures"))).run(("substitutions",))
+    assert conn.execute("SELECT 1 FROM meta WHERE key='portal_block'").fetchone() is None
+    assert "Elternkontos abgelehnt" not in app_client.get("/").text
